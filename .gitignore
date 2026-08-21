@@ -1,0 +1,26 @@
+# ---- CLIENT DATA — never commit ----
+output/
+intake/*
+!intake/.gitkeep
+*.filled.docx
+questionnaire_*.docx
+
+# Original unscrubbed source documents
+templates/_source/
+*.doc
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.spec
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+~$*.docx
+.vscode/
+.idea/

@@ -1,0 +1,75 @@
+{
+  "_comment": "Every field the system knows about. The intake UI is generated from this file. Derived fields (see app/schema.py) are computed, never typed, and are listed here with \"derived\": true so startup validation can account for them.",
+
+  "groups": {
+    "case":        { "label": "Case Information", "order": 1 },
+    "petitioner1": { "label": "Petitioner", "order": 2 },
+    "petitioner2": { "label": "Second Petitioner", "order": 3 },
+    "child1":      { "label": "Child", "order": 4 },
+    "child2":      { "label": "Second Child", "order": 5 },
+    "bio_parents": { "label": "Biological Parents", "order": 6 },
+    "dhs":         { "label": "DHS Case Details", "order": 7 },
+    "icwa":        { "label": "Indian Child Welfare Act", "order": 8 }
+  },
+
+  "fields": [
+    { "id": "county", "group": "case", "type": "select", "label": "Filing county",
+      "required": true, "options": ["Wagoner", "Tulsa", "Rogers", "Muskogee", "Carter", "Washington", "Cherokee", "Creek", "Mayes", "Okmulgee"],
+      "help": "County whose district court this is filed in." },
+    { "id": "county_upper", "group": "case", "type": "text", "derived": true },
+    { "id": "case_number", "group": "case", "type": "text", "label": "Case number",
+      "required": false, "help": "Leave blank to print FA-<year>-_____ for the clerk to fill in." },
+    { "id": "case_year", "group": "case", "type": "text", "derived": true },
+    { "id": "attorney_short_name", "group": "case", "type": "text", "derived": true,
+      "help": "Pulled from settings, not the intake form." },
+
+    { "id": "petitioner1_name", "group": "petitioner1", "type": "text", "label": "Full legal name", "required": true },
+    { "id": "petitioner1_address", "group": "petitioner1", "type": "text", "label": "Current address", "required": true },
+    { "id": "petitioner1_race", "group": "petitioner1", "type": "text", "label": "Race", "required": true },
+    { "id": "petitioner1_gender", "group": "petitioner1", "type": "select", "label": "Gender",
+      "required": true, "options": ["male", "female"] },
+    { "id": "petitioner1_dob", "group": "petitioner1", "type": "date", "label": "Date of birth", "required": true },
+    { "id": "petitioner1_birth_state", "group": "petitioner1", "type": "text", "label": "State of birth", "required": true },
+    { "id": "petitioner1_birth_day", "group": "petitioner1", "type": "text", "derived": true },
+    { "id": "petitioner1_birth_month", "group": "petitioner1", "type": "text", "derived": true },
+    { "id": "petitioner1_birth_year", "group": "petitioner1", "type": "text", "derived": true },
+    { "id": "petitioner1_age", "group": "petitioner1", "type": "number", "derived": true },
+
+    { "id": "child1_name", "group": "child1", "type": "text", "label": "Current legal name", "required": true },
+    { "id": "child1_name_upper", "group": "child1", "type": "text", "derived": true },
+    { "id": "child1_dob", "group": "child1", "type": "date", "label": "Date of birth", "required": true },
+    { "id": "child1_birth_day", "group": "child1", "type": "text", "derived": true },
+    { "id": "child1_birth_month", "group": "child1", "type": "text", "derived": true },
+    { "id": "child1_birth_year", "group": "child1", "type": "text", "derived": true },
+    { "id": "child1_under_12", "group": "child1", "type": "bool", "derived": true,
+      "help": "Computed from date of birth. Drives whether the child's consent is required." },
+    { "id": "child1_race", "group": "child1", "type": "text", "label": "Race", "required": true },
+    { "id": "child1_gender", "group": "child1", "type": "select", "label": "Gender",
+      "required": true, "options": ["male", "female"] },
+    { "id": "child1_birth_place", "group": "child1", "type": "text", "label": "Hospital or place of birth", "required": true },
+    { "id": "child1_birth_city", "group": "child1", "type": "text", "label": "City of birth", "required": true },
+    { "id": "child1_birth_county", "group": "child1", "type": "text", "label": "County of birth", "required": true },
+    { "id": "child1_birth_state", "group": "child1", "type": "text", "label": "State of birth", "required": true },
+    { "id": "child1_residence_county", "group": "child1", "type": "text", "label": "County of residence, past 5 years", "required": true },
+    { "id": "name_change", "group": "child1", "type": "bool", "label": "Change the child's name?", "required": true },
+    { "id": "child1_new_name", "group": "child1", "type": "text", "label": "New legal name",
+      "required": false, "depends_on": "name_change" },
+
+    { "id": "bio_mother_name", "group": "bio_parents", "type": "text", "label": "Biological mother", "required": true },
+    { "id": "bio_mother_status", "group": "bio_parents", "type": "select", "label": "Mother's rights",
+      "required": true, "options": ["relinquished", "terminated"],
+      "help": "Relinquished = signed a permanent relinquishment. Terminated = rights ended by court order." },
+    { "id": "bio_father_name", "group": "bio_parents", "type": "text", "label": "Biological father", "required": true },
+    { "id": "bio_father_status", "group": "bio_parents", "type": "select", "label": "Father's rights",
+      "required": true, "options": ["relinquished", "terminated"] },
+
+    { "id": "deprived_action_county", "group": "dhs", "type": "text", "label": "County of the deprived action", "required": true },
+    { "id": "foster_placement_date", "group": "dhs", "type": "date", "label": "Date of foster placement", "required": true },
+
+    { "id": "icwa_applies", "group": "icwa", "type": "bool", "label": "Does ICWA apply?", "required": true,
+      "help": "Selects between the ICWA and non-ICWA versions of the relevant paragraphs in both the Petition and the Decree." },
+    { "id": "tribe", "group": "icwa", "type": "text", "label": "Tribe",
+      "required": false, "depends_on": "icwa_applies",
+      "help": "Full name as it should appear, e.g. Cherokee Nation." }
+  ]
+}

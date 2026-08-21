@@ -1,0 +1,106 @@
+{
+  "_comment": "Adding an adoption type or a new pleading should only ever require editing this file and dropping a .docx into templates/. If it requires a Python change, the design has drifted. Entries marked \"status\": \"pending\" have no tokenized template yet and are hidden from the UI.",
+
+  "matters": [
+    {
+      "id": "dhs",
+      "label": "DHS / State Custody Adoption",
+      "variants": [
+        {
+          "id": "dhs_1p_1c",
+          "label": "1 petitioner, 1 child",
+          "status": "ready",
+          "petitioners": 1,
+          "children": 1,
+          "field_groups": ["case", "petitioner1", "child1", "bio_parents", "dhs", "icwa"],
+          "documents": [
+            {
+              "template": "dhs/dhs_petition_decree_1p_1c.docx",
+              "output_name": "Petition and Decree - {{ child1_name }}.docx"
+            }
+          ]
+        },
+        {
+          "id": "dhs_2p_1c",
+          "label": "2 petitioners, 1 child",
+          "status": "pending",
+          "petitioners": 2,
+          "children": 1,
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "bio_parents", "dhs", "icwa"],
+          "documents": [
+            { "template": "dhs/dhs_petition_decree_2p_1c.docx",
+              "output_name": "Petition and Decree - {{ child1_name }}.docx" }
+          ]
+        },
+        {
+          "id": "dhs_1p_2c",
+          "label": "1 petitioner, 2 children",
+          "status": "pending",
+          "petitioners": 1,
+          "children": 2,
+          "field_groups": ["case", "petitioner1", "child1", "child2", "bio_parents", "dhs", "icwa"],
+          "documents": [
+            { "template": "dhs/dhs_petition_1p_2c.docx",
+              "output_name": "Petition - {{ child1_name }}.docx" }
+          ]
+        },
+        {
+          "id": "dhs_2p_2c",
+          "label": "2 petitioners, 2 children",
+          "status": "pending",
+          "petitioners": 2,
+          "children": 2,
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "bio_parents", "dhs", "icwa"],
+          "documents": [
+            { "template": "dhs/dhs_petition_2p_2c.docx",
+              "output_name": "Petition - {{ child1_name }}.docx" }
+          ]
+        }
+      ],
+      "common_documents": [
+        { "template": "dhs/dhs_consent_affidavit_order.docx",
+          "output_name": "Consent, Affidavit of Expenditures, Order for Hearing.docx",
+          "status": "pending" },
+        { "template": "dhs/dhs_packet.docx",
+          "output_name": "DHS Filing Packet.docx",
+          "status": "pending" }
+      ]
+    },
+
+    {
+      "id": "stepparent",
+      "label": "Step-Parent Adoption",
+      "variants": [
+        {
+          "id": "step_1c",
+          "label": "1 child",
+          "status": "pending",
+          "petitioners": 2,
+          "children": 1,
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "bio_parents", "icwa"],
+          "documents": [
+            { "template": "stepparent/step_petition_1c.docx",
+              "output_name": "Petition for Step Parent Adoption - {{ child1_name }}.docx" }
+          ]
+        },
+        {
+          "id": "step_2c",
+          "label": "2 children",
+          "status": "pending",
+          "petitioners": 2,
+          "children": 2,
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "bio_parents", "icwa"],
+          "documents": [
+            { "template": "stepparent/step_petition_2c.docx",
+              "output_name": "Petition for Step Parent Adoption - {{ child1_name }}.docx" }
+          ]
+        }
+      ],
+      "common_documents": [
+        { "template": "stepparent/step_packet.docx",
+          "output_name": "Step Parent Filing Packet.docx",
+          "status": "pending" }
+      ]
+    }
+  ]
+}
