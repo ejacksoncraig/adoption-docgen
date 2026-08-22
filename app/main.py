@@ -147,7 +147,7 @@ class Api:
             webview.OPEN_DIALOG,
             directory=str(INTAKE_DIR),
             allow_multiple=False,
-            file_types=("Intake files (*.json)", "All files (*.*)"),
+            file_types=("Saved intake or client answers (*.json)", "All files (*.*)"),
         )
         if not chosen:
             return {"ok": True, "cancelled": True}
@@ -155,25 +155,54 @@ class Api:
 
     @guarded
     def load_intake(self, payload: dict) -> dict:
+        """Open a saved intake, or the answers a family sent back.
+
+        Splits what is still missing in two: the questions the office fills in,
+        and the ones the family left blank. Those need different actions — one is
+        typing, the other is a phone call — so they are not run together into one
+        list of things that are wrong.
+        """
         loaded = intake.load_intake(Path(payload["path"]), self.registry)
-        return {"ok": True, **loaded, "path": payload["path"]}
+        variant = self.registry.variant(loaded["matter"], loaded["variant"])
+        schema = self.registry.schema
+
+        missing = set(schema.missing_required(loaded["values"], variant.field_groups))
+        for_family = {
+            schema.label_for(fd)
+            for fd in schema.input_fields(variant.field_groups)
+            if schema.on_questionnaire(fd)
+        }
+        return {
+            "ok": True,
+            **loaded,
+            "path": payload["path"],
+            "staff_remaining": sorted(missing - for_family),
+            "family_remaining": sorted(missing & for_family),
+        }
 
     # -- questionnaire -----------------------------------------------------
 
     @guarded
     def questionnaire(self, payload: dict) -> dict:
+        """The paper questionnaire: print it, fill it in by hand, type it back in."""
         matter, variant_id = payload["matter"], payload["variant"]
         default = intake.default_questionnaire_path(matter, variant_id)
-        target: str | None = None
-        if self._window is not None:
-            chosen = self._window.create_file_dialog(
-                webview.SAVE_DIALOG, directory=str(OUTPUT_DIR), save_filename=default.name
-            )
-            if not chosen:
-                return {"ok": True, "cancelled": True}
-            target = chosen if isinstance(chosen, str) else chosen[0]
-        path = intake.build_questionnaire(self.registry, matter, variant_id, Path(target or default))
+        target = self._ask_where_to_save(default)
+        if target is None:
+            return {"ok": True, "cancelled": True}
+        path = intake.build_questionnaire(self.registry, matter, variant_id, target)
         return {"ok": True, "path": str(path)}
+
+    def _ask_where_to_save(self, default: Path) -> Path | None:
+        """None means the dialog was cancelled."""
+        if self._window is None:
+            return default
+        chosen = self._window.create_file_dialog(
+            webview.SAVE_DIALOG, directory=str(default.parent), save_filename=default.name
+        )
+        if not chosen:
+            return None
+        return Path(chosen if isinstance(chosen, str) else chosen[0])
 
 
 def _clean(values: dict[str, Any]) -> dict[str, Any]:

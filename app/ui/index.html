@@ -108,6 +108,11 @@
   .field.wide { grid-column: 1 / -1; }
   .field label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
   .field .req { color: var(--danger); margin-left: 3px; }
+  .field .src {
+    font-size: 10.5px; font-weight: 500; letter-spacing: .3px; text-transform: uppercase;
+    color: var(--accent); background: var(--ok-bg); border: 1px solid #cfe0d7;
+    padding: 1px 6px; border-radius: 10px; margin-left: 7px; vertical-align: 1px;
+  }
   .field .help { font-size: 12.5px; color: var(--ink-faint); margin: 4px 0 0; line-height: 1.45; }
   .field input[type=text], .field input[type=date], .field input[type=number], .field select {
     width: 100%; padding: 7px 9px; font: inherit; font-size: 14px;
@@ -224,7 +229,7 @@
       </div>
 
       <div class="actions">
-        <button class="btn" id="btnLoadIntake">Open a saved intake…</button>
+        <button class="btn" id="btnLoadIntake">Open a saved intake or client answers…</button>
         <span class="spacer"></span>
         <button class="btn primary" id="btnToIntake" disabled>Continue to intake</button>
       </div>
@@ -242,7 +247,7 @@
       <div class="actions">
         <button class="btn" id="btnBackToMatter">Back</button>
         <button class="btn" id="btnSaveIntake">Save intake…</button>
-        <button class="btn" id="btnQuestionnaire">Export blank questionnaire…</button>
+        <button class="btn" id="btnQuestionnaire">Paper questionnaire…</button>
         <span class="spacer"></span>
         <button class="btn primary" id="btnToReview">Review</button>
       </div>
@@ -297,6 +302,7 @@ const state = {
   values: {},
   pdfAvailable: false,
   lastFolder: null,
+  fromClient: null,   // ids answered by the family, when a client form was loaded
 };
 
 const $  = (sel) => document.querySelector(sel);
@@ -415,7 +421,7 @@ async function loadForm(keepValues) {
   const res = await call("form_spec", { matter: state.matter, variant: state.variant });
   if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not build the form", res.problems)); return false; }
   state.spec = res.spec;
-  if (!keepValues) state.values = {};
+  if (!keepValues) { state.values = {}; state.fromClient = null; }
   $("#intakeTitle").textContent = res.spec.label;
   renderForm();
   return true;
@@ -466,6 +472,10 @@ function renderField(field) {
     wrap.classList.remove("missing");
     if (field.type === "bool") applyDependencies();
   });
+
+  // An answer the family gave is worth marking: it tells staff which boxes are
+  // theirs to fill, and which ones to read back against what the client sent.
+  if (state.fromClient && state.fromClient.has(field.id)) label.append(el("span", { className: "src", textContent: "from client" }));
 
   if (field.type === "bool") {
     wrap.append(input, el("span", {}, [label, field.help ? el("p", { className: "help", textContent: field.help }) : ""]));
@@ -586,10 +596,29 @@ async function openIntake() {
   $("#btnToIntake").disabled = false;
 
   state.values = res.values || {};
+  state.fromClient = res.from_client ? new Set(res.answered || []) : null;
   if (!(await loadForm(true))) return;
+
   const note = $("#intakeNote");
   note.replaceChildren();
-  if (res.warnings && res.warnings.length) note.append(noteBox("warn", "Some saved answers were not loaded", res.warnings));
+
+  if (res.from_client) {
+    const answered = (res.answered || []).length;
+    const box = noteBox("ok", `${answered} answer(s) loaded from the client's questionnaire.`, []);
+    box.append(el("p", { style: "margin:8px 0 0;font-size:13.5px",
+                         textContent: "Check them against what the family sent, then fill in the rest below." }));
+    note.append(box);
+    if (res.staff_remaining && res.staff_remaining.length) {
+      note.append(noteBox("warn", "Still for the office to fill in", res.staff_remaining));
+    }
+    if (res.family_remaining && res.family_remaining.length) {
+      note.append(noteBox("warn", "The family left these blank — you may need to ask them", res.family_remaining));
+    }
+  }
+  if (res.warnings && res.warnings.length) {
+    note.append(noteBox("warn", "Some answers were not loaded", res.warnings));
+  }
+
   showStep("intake");
   status("Loaded " + res.path);
 }
