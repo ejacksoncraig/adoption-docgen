@@ -1,15 +1,24 @@
 {
   "_comment": "Every field the system knows about. The intake UI is generated from this file. Derived fields (see app/schema.py) are computed, never typed, and are listed here with \"derived\": true so startup validation can account for them.",
 
+  "_date_formats": "A date field is entered once and displayed however the template needs it. \"format\" picks the rendering: mdy = 3/9/2024, long = March 9, 2024, long_ordinal = 9th day of March, 2024 (for prose that reads \"on the ____,\"), iso = 2024-03-09. Default is mdy.",
+
+  "_defaults": "\"default\" is a small Jinja string used when the field is left blank, evaluated after derived fields are computed.",
+
+  "_questionnaire": "A group with \"questionnaire\": false is left out of the .docx questionnaire emailed to adoptive parents — it is information the office fills in, not the family. A single field can opt out the same way, even when the rest of its group belongs on the questionnaire.",
+
+  "_stepparent_convention": "For every 'stepparent' matter, Petitioner 1 is the biological/legal-custodial parent (already has rights, is not adopting) and Petitioner 2 is the spouse who is adopting. The 'stepparent' field group captures the other, non-petitioner biological parent (the one whose consent, termination, or non-support excuse the court needs to see).",
+
   "groups": {
-    "case":        { "label": "Case Information", "order": 1 },
+    "case":        { "label": "Case Information", "order": 1, "questionnaire": false },
     "petitioner1": { "label": "Petitioner", "order": 2 },
     "petitioner2": { "label": "Second Petitioner", "order": 3 },
     "child1":      { "label": "Child", "order": 4 },
     "child2":      { "label": "Second Child", "order": 5 },
     "bio_parents": { "label": "Biological Parents", "order": 6 },
     "dhs":         { "label": "DHS Case Details", "order": 7 },
-    "icwa":        { "label": "Indian Child Welfare Act", "order": 8 }
+    "icwa":        { "label": "Indian Child Welfare Act", "order": 8 },
+    "stepparent":  { "label": "Other Biological Parent", "order": 9 }
   },
 
   "fields": [
@@ -18,7 +27,8 @@
       "help": "County whose district court this is filed in." },
     { "id": "county_upper", "group": "case", "type": "text", "derived": true },
     { "id": "case_number", "group": "case", "type": "text", "label": "Case number",
-      "required": false, "help": "Leave blank to print FA-<year>-_____ for the clerk to fill in." },
+      "required": false, "default": "FA-{{ case_year }}-_____",
+      "help": "Leave blank to print FA-<year>-_____ for the clerk to fill in." },
     { "id": "case_year", "group": "case", "type": "text", "derived": true },
     { "id": "attorney_short_name", "group": "case", "type": "text", "derived": true,
       "help": "Pulled from settings, not the intake form." },
@@ -28,16 +38,31 @@
     { "id": "petitioner1_race", "group": "petitioner1", "type": "text", "label": "Race", "required": true },
     { "id": "petitioner1_gender", "group": "petitioner1", "type": "select", "label": "Gender",
       "required": true, "options": ["male", "female"] },
-    { "id": "petitioner1_dob", "group": "petitioner1", "type": "date", "label": "Date of birth", "required": true },
+    { "id": "petitioner1_dob", "group": "petitioner1", "type": "date", "label": "Date of birth", "required": true, "format": "mdy" },
     { "id": "petitioner1_birth_state", "group": "petitioner1", "type": "text", "label": "State of birth", "required": true },
     { "id": "petitioner1_birth_day", "group": "petitioner1", "type": "text", "derived": true },
     { "id": "petitioner1_birth_month", "group": "petitioner1", "type": "text", "derived": true },
     { "id": "petitioner1_birth_year", "group": "petitioner1", "type": "text", "derived": true },
     { "id": "petitioner1_age", "group": "petitioner1", "type": "number", "derived": true },
 
+    { "id": "petitioner2_name", "group": "petitioner2", "type": "text", "label": "Full legal name", "required": true },
+    { "id": "petitioner2_race", "group": "petitioner2", "type": "text", "label": "Race", "required": true },
+    { "id": "petitioner2_gender", "group": "petitioner2", "type": "select", "label": "Gender",
+      "required": true, "options": ["male", "female"] },
+    { "id": "petitioner2_dob", "group": "petitioner2", "type": "date", "label": "Date of birth", "required": true, "format": "mdy" },
+    { "id": "petitioner2_birth_state", "group": "petitioner2", "type": "text", "label": "State of birth", "required": true },
+    { "id": "petitioner2_birth_day", "group": "petitioner2", "type": "text", "derived": true },
+    { "id": "petitioner2_birth_month", "group": "petitioner2", "type": "text", "derived": true },
+    { "id": "petitioner2_birth_year", "group": "petitioner2", "type": "text", "derived": true },
+    { "id": "petitioner2_age", "group": "petitioner2", "type": "number", "derived": true },
+    { "id": "marriage_date", "group": "petitioner2", "type": "date", "label": "Date the Petitioners married",
+      "required": true, "format": "long_ordinal",
+      "help": "Prints as \"the 11th day of October, 2014\". Only asked when there are two petitioners." },
+    { "id": "marriage_place", "group": "petitioner2", "type": "text", "label": "City and state where married", "required": true },
+
     { "id": "child1_name", "group": "child1", "type": "text", "label": "Current legal name", "required": true },
     { "id": "child1_name_upper", "group": "child1", "type": "text", "derived": true },
-    { "id": "child1_dob", "group": "child1", "type": "date", "label": "Date of birth", "required": true },
+    { "id": "child1_dob", "group": "child1", "type": "date", "label": "Date of birth", "required": true, "format": "mdy" },
     { "id": "child1_birth_day", "group": "child1", "type": "text", "derived": true },
     { "id": "child1_birth_month", "group": "child1", "type": "text", "derived": true },
     { "id": "child1_birth_year", "group": "child1", "type": "text", "derived": true },
@@ -55,6 +80,25 @@
     { "id": "child1_new_name", "group": "child1", "type": "text", "label": "New legal name",
       "required": false, "depends_on": "name_change" },
 
+    { "id": "child2_name", "group": "child2", "type": "text", "label": "Current legal name", "required": true },
+    { "id": "child2_name_upper", "group": "child2", "type": "text", "derived": true },
+    { "id": "child2_dob", "group": "child2", "type": "date", "label": "Date of birth", "required": true, "format": "mdy" },
+    { "id": "child2_birth_day", "group": "child2", "type": "text", "derived": true },
+    { "id": "child2_birth_month", "group": "child2", "type": "text", "derived": true },
+    { "id": "child2_birth_year", "group": "child2", "type": "text", "derived": true },
+    { "id": "child2_under_12", "group": "child2", "type": "bool", "derived": true,
+      "help": "Computed from date of birth. Drives whether the child's consent is required." },
+    { "id": "child2_race", "group": "child2", "type": "text", "label": "Race", "required": true },
+    { "id": "child2_gender", "group": "child2", "type": "select", "label": "Gender",
+      "required": true, "options": ["male", "female"] },
+    { "id": "child2_birth_place", "group": "child2", "type": "text", "label": "Hospital or place of birth", "required": true },
+    { "id": "child2_birth_city", "group": "child2", "type": "text", "label": "City of birth", "required": true },
+    { "id": "child2_birth_county", "group": "child2", "type": "text", "label": "County of birth", "required": true },
+    { "id": "child2_birth_state", "group": "child2", "type": "text", "label": "State of birth", "required": true },
+    { "id": "name_change_child2", "group": "child2", "type": "bool", "label": "Change the second child's name?", "required": true },
+    { "id": "child2_new_name", "group": "child2", "type": "text", "label": "New legal name",
+      "required": false, "depends_on": "name_change_child2" },
+
     { "id": "bio_mother_name", "group": "bio_parents", "type": "text", "label": "Biological mother", "required": true },
     { "id": "bio_mother_status", "group": "bio_parents", "type": "select", "label": "Mother's rights",
       "required": true, "options": ["relinquished", "terminated"],
@@ -64,12 +108,32 @@
       "required": true, "options": ["relinquished", "terminated"] },
 
     { "id": "deprived_action_county", "group": "dhs", "type": "text", "label": "County of the deprived action", "required": true },
-    { "id": "foster_placement_date", "group": "dhs", "type": "date", "label": "Date of foster placement", "required": true },
+    { "id": "foster_placement_date", "group": "dhs", "type": "date", "label": "Date of foster placement", "required": true,
+      "format": "long_ordinal",
+      "help": "Prints as \"the 21st day of September, 2024\" in the body of the petition." },
 
     { "id": "icwa_applies", "group": "icwa", "type": "bool", "label": "Does ICWA apply?", "required": true,
       "help": "Selects between the ICWA and non-ICWA versions of the relevant paragraphs in both the Petition and the Decree." },
     { "id": "tribe", "group": "icwa", "type": "text", "label": "Tribe",
       "required": false, "depends_on": "icwa_applies",
-      "help": "Full name as it should appear, e.g. Cherokee Nation." }
+      "help": "Full name as it should appear, e.g. Cherokee Nation." },
+
+    { "id": "other_parent_name", "group": "stepparent", "type": "text", "label": "Other biological parent's name",
+      "required": true, "help": "The non-petitioner biological parent — used only in step-parent matters." },
+    { "id": "other_parent_relationship", "group": "stepparent", "type": "select", "label": "Other biological parent is the child's",
+      "required": true, "options": ["mother", "father"] },
+    { "id": "other_parent_pronoun", "group": "stepparent", "type": "text", "derived": true,
+      "help": "Derived from other_parent_relationship: mother -> she, father -> he." },
+    { "id": "other_parent_pronoun_object", "group": "stepparent", "type": "text", "derived": true,
+      "help": "mother -> her, father -> him. Use where the parent is the object: 'notice was served on ___'." },
+    { "id": "other_parent_pronoun_possessive", "group": "stepparent", "type": "text", "derived": true,
+      "help": "mother -> her, father -> his. Use before a noun: '___ consent', '___ parental rights'." },
+    { "id": "other_parent_consent_basis", "group": "stepparent", "type": "select", "label": "Other parent's consent status",
+      "required": true, "options": ["consents", "terminated", "excused_nonsupport"],
+      "help": "consents = will sign a written consent. terminated = rights already terminated by court order. excused_nonsupport = consent not required under 10 O.S. 7505-4.2 due to a year of willful non-support/non-contact." },
+
+    { "id": "attorney_fees_summary", "group": "dhs", "type": "text", "label": "Fees and costs to date",
+      "required": true, "questionnaire": false,
+      "help": "Printed verbatim in the Affidavit of Expenditures, which is filed in every DHS adoption — so it is required. E.g. 'Hourly Rate = $300.00; Total Hours = 12.00 x $300.00 = $3,600.00; Filing Fee = $184.14; Total = $3,824.14.'" }
   ]
 }

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adoption Intake Questionnaire</title>
+<!--
+  The form the office emails to an adoptive family.
+
+  It is one self-contained file with no external request of any kind. The family
+  opens it in whatever browser they have, answers what they can, and clicks Save,
+  which writes a small file to their Downloads folder. They email that file back.
+  Nothing is transmitted by this page — there is nowhere for it to go.
+
+  The questions are generated from config/fields.json by app/intake.py and
+  injected below, so a field added to the schema appears here, on the paper
+  questionnaire, and in the office's own intake form, all from the one edit.
+
+  The saved file feeds straight back into the intake form: no retyping, and no
+  chance of a name being mistyped on the way in.
+-->
+<style>
+  :root {
+    --ink:       #24221e;
+    --ink-soft:  #56514a;
+    --ink-faint: #857f74;
+    --page:      #f7f5f1;
+    --card:      #ffffff;
+    --line:      #ddd7cc;
+    --line-soft: #ebe6dc;
+    --accent:    #1f4d3f;
+    --accent-2:  #2c6b57;
+    --danger:    #8c2f28;
+    --danger-bg: #fdf1ef;
+    --warn:      #8a6212;
+    --warn-bg:   #fdf6e6;
+    --ok-bg:     #eef4f0;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 16px/1.55 var(--sans);
+  }
+  .sheet { max-width: 780px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header { background: var(--accent); color: #f2efe8; padding: 30px 0; margin-bottom: 26px; }
+  header .sheet { padding-bottom: 0; }
+  header h1 { font: 600 25px/1.25 var(--serif); margin: 0 0 4px; }
+  header p { margin: 0; color: #b9cdc4; font-size: 15px; }
+
+  .intro { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 20px 22px; margin-bottom: 22px; }
+  .intro h2 { font: 600 17px/1.3 var(--serif); margin: 0 0 8px; }
+  .intro p { margin: 0 0 10px; color: var(--ink-soft); }
+  .intro p:last-child { margin-bottom: 0; }
+  .privacy { background: var(--ok-bg); border: 1px solid #cfe0d7; border-radius: 6px; padding: 12px 15px; font-size: 14.5px; color: #1f4d3f; }
+
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 22px 20px; margin-bottom: 18px; }
+  section > h2 {
+    font: 600 12.5px/1 var(--sans); letter-spacing: .9px; text-transform: uppercase;
+    color: var(--ink-faint); margin: 20px 0 4px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft);
+  }
+
+  .q { padding: 16px 0 0; }
+  .q + .q { border-top: 1px solid var(--line-soft); margin-top: 4px; }
+  .q label.main { display: block; font-weight: 600; font-size: 15.5px; margin-bottom: 3px; }
+  .q .req { color: var(--danger); margin-left: 3px; }
+  .q .help { font-size: 14px; color: var(--ink-faint); margin: 0 0 8px; }
+  .q input[type=text], .q input[type=date], .q input[type=number], .q select {
+    width: 100%; max-width: 460px; padding: 9px 11px; font: inherit; font-size: 15.5px;
+    border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+  }
+  .q input:focus, .q select:focus { outline: 2px solid var(--accent-2); outline-offset: -1px; }
+  .q.unanswered input, .q.unanswered select { border-color: var(--danger); background: var(--danger-bg); }
+  .q[hidden] { display: none; }
+
+  .yesno { display: flex; gap: 10px; flex-wrap: wrap; }
+  .yesno label {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px;
+    border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; font-size: 15.5px;
+  }
+  .yesno label:hover { border-color: var(--accent-2); }
+  .yesno input { accent-color: var(--accent); width: 17px; height: 17px; }
+  .yesno label.on { border-color: var(--accent); background: #fbfdfc; font-weight: 600; }
+
+  .bar {
+    position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+    padding: 14px 0; margin-top: 26px; box-shadow: 0 -3px 14px rgba(0,0,0,.05);
+  }
+  .bar .sheet { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-bottom: 0; }
+  .bar .count { flex: 1; font-size: 14.5px; color: var(--ink-soft); min-width: 200px; }
+  button {
+    font: inherit; font-size: 15px; padding: 10px 20px; border-radius: 6px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button:hover { border-color: var(--ink-faint); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+  .msg { border-radius: 6px; padding: 13px 16px; margin-bottom: 18px; font-size: 15px; }
+  .msg.warn { background: var(--warn-bg); border: 1px solid #ecdcb0; color: var(--warn); }
+  .msg.ok { background: var(--ok-bg); border: 1px solid #cfe0d7; color: var(--accent); }
+  .msg strong { display: block; margin-bottom: 5px; }
+  .msg ul { margin: 6px 0 0; padding-left: 20px; }
+  .msg a { color: inherit; }
+
+  @media print {
+    header { background: none; color: var(--ink); border-bottom: 2px solid var(--ink); }
+    header p { color: var(--ink-soft); }
+    .bar, .privacy, #messages { display: none; }
+    section, .intro { border: none; padding-left: 0; padding-right: 0; }
+    .q input, .q select { border-bottom: 1px solid var(--ink); border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="sheet">
+    <h1>Adoption Intake Questionnaire</h1>
+    <p id="subtitle"></p>
+  </div>
+</header>
+
+<div class="sheet">
+
+  <div class="intro">
+    <h2>How to fill this in</h2>
+    <p>Please answer as much as you can. If you are unsure of an exact date or spelling,
+       leave it blank rather than guessing — we will follow up with you. Names should be
+       written exactly as they appear on the birth certificate.</p>
+    <p>When you are finished, click <strong>Save my answers</strong> at the bottom. Your
+       browser will save a small file to your Downloads folder. Please email that file
+       back to our office as an attachment.</p>
+    <p>You do not have to finish in one sitting. Save at any point, and use
+       <strong>Open a saved copy</strong> to pick up where you left off.</p>
+    <div class="privacy">
+      This form works entirely on your own computer. Nothing you type is sent anywhere
+      until you email the saved file back to us yourself.
+    </div>
+  </div>
+
+  <div id="messages"></div>
+  <form id="form" autocomplete="off"></form>
+</div>
+
+<div class="bar">
+  <div class="sheet">
+    <span class="count" id="count"></span>
+    <button type="button" id="btnOpen">Open a saved copy</button>
+    <button type="button" id="btnPrint">Print</button>
+    <button type="button" class="primary" id="btnSave">Save my answers</button>
+    <input type="file" id="picker" accept=".json,application/json" hidden>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* The office's schema for this matter, injected when the form is generated. */
+const SPEC = /*__SPEC__*/null;
+
+const values = {};
+const $ = (s) => document.querySelector(s);
+
+/* ---------- building the questions ---------- */
+
+function el(tag, props = {}, kids = []) {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const kid of [].concat(kids)) if (kid) node.append(kid);
+  return node;
+}
+
+function build() {
+  $("#subtitle").textContent = SPEC.matter_label + " — " + SPEC.variant_label;
+  document.title = "Adoption Intake Questionnaire — " + SPEC.matter_label;
+
+  const form = $("#form");
+  for (const group of SPEC.groups) {
+    if (!group.fields.length) continue;
+    const section = el("section", {}, [el("h2", { textContent: group.label })]);
+    for (const field of group.fields) section.append(question(field));
+    form.append(section);
+  }
+  applyGates();
+  updateCount();
+}
+
+function question(field) {
+  const wrap = el("div", { className: "q", id: "q-" + field.id });
+  wrap.dataset.field = field.id;
+  if (field.depends_on) wrap.dataset.dependsOn = field.depends_on;
+
+  const label = el("label", { className: "main", htmlFor: "f-" + field.id, textContent: field.label });
+  if (field.required) label.append(el("span", { className: "req", textContent: "*" }));
+  wrap.append(label);
+  if (field.help) wrap.append(el("p", { className: "help", textContent: field.help }));
+
+  wrap.append(field.type === "bool" ? yesNo(field) : input(field));
+  return wrap;
+}
+
+/** A checkbox is easy to leave unticked by accident, and an unticked box and an
+    unanswered question look identical. Yes and No are asked explicitly. */
+function yesNo(field) {
+  const box = el("div", { className: "yesno" });
+  for (const [text, value] of [["Yes", true], ["No", false]]) {
+    const radio = el("input", { type: "radio", name: field.id, value: String(value) });
+    const label = el("label", {}, [radio, el("span", { textContent: text })]);
+    radio.addEventListener("change", () => {
+      values[field.id] = value;
+      for (const other of box.querySelectorAll("label")) other.classList.remove("on");
+      label.classList.add("on");
+      applyGates();
+      updateCount();
+    });
+    box.append(label);
+  }
+  return box;
+}
+
+function input(field) {
+  let node;
+  if (field.type === "select") {
+    node = el("select");
+    node.append(el("option", { value: "", textContent: "— please choose —" }));
+    for (const option of field.options) {
+      node.append(el("option", { value: option, textContent: option.charAt(0).toUpperCase() + option.slice(1) }));
+    }
+  } else {
+    node = el("input", { type: field.type === "date" ? "date" : field.type === "number" ? "number" : "text" });
+  }
+  node.id = "f-" + field.id;
+  node.name = field.id;
+  node.addEventListener(field.type === "select" ? "change" : "input", () => {
+    if (node.value === "") delete values[field.id];
+    else values[field.id] = node.value;
+    document.getElementById("q-" + field.id).classList.remove("unanswered");
+    updateCount();
+  });
+  return node;
+}
+
+/* ---------- conditional questions ---------- */
+
+function applyGates() {
+  for (const wrap of document.querySelectorAll("[data-depends-on]")) {
+    const open = values[wrap.dataset.dependsOn] === true;
+    wrap.hidden = !open;
+    if (!open) {
+      delete values[wrap.dataset.field];
+      const control = wrap.querySelector("input, select");
+      if (control && control.type !== "radio") control.value = "";
+    }
+  }
+}
+
+/* ---------- progress ---------- */
+
+function everyField() {
+  return SPEC.groups.flatMap((g) => g.fields);
+}
+
+function applicable(field) {
+  return !field.depends_on || values[field.depends_on] === true;
+}
+
+function unanswered() {
+  return everyField().filter((f) => f.required && applicable(f) && values[f.id] === undefined);
+}
+
+function updateCount() {
+  const total = everyField().filter((f) => f.required && applicable(f)).length;
+  const left = unanswered().length;
+  $("#count").textContent = left === 0
+    ? "All " + total + " required questions answered."
+    : left + " of " + total + " required questions still to answer.";
+}
+
+/* ---------- saving and reopening ---------- */
+
+function saveFile() {
+  const missing = unanswered();
+  const payload = {
+    format: 1,
+    kind: "client_form",
+    matter: SPEC.matter,
+    variant: SPEC.variant,
+    saved_at: new Date().toISOString().slice(0, 19),
+    values: values,
+  };
+  const name = "adoption-answers-" + (SPEC.variant || "form") + ".json";
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const link = el("a", { href: URL.createObjectURL(blob), download: name });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+
+  const box = $("#messages");
+  box.replaceChildren();
+  if (missing.length) {
+    const note = el("div", { className: "msg warn" }, [
+      el("strong", { textContent: "Saved — but " + missing.length + " required question(s) are still blank." }),
+      el("span", { textContent: "You can email this file to us as it is and we will follow up, or answer the questions below and save again." }),
+      el("ul", {}, missing.slice(0, 12).map((f) => el("li", { textContent: f.label }))),
+    ]);
+    box.append(note);
+    for (const field of missing) document.getElementById("q-" + field.id).classList.add("unanswered");
+    document.getElementById("q-" + missing[0].id).scrollIntoView({ behavior: "smooth", block: "center" });
+  } else {
+    box.append(el("div", { className: "msg ok" }, [
+      el("strong", { textContent: "Saved: " + name }),
+      el("span", { textContent: "It is in your Downloads folder. Please email it back to our office as an attachment." }),
+    ]));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
+function openFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch (err) {
+      showError("That file could not be read. Please choose the file this form saved earlier.");
+      return;
+    }
+    if (!payload || typeof payload.values !== "object" || payload.values === null) {
+      showError("That does not look like a saved copy of this questionnaire.");
+      return;
+    }
+    if (payload.variant && SPEC.variant && payload.variant !== SPEC.variant) {
+      showError("That file was saved from a different questionnaire, so it cannot be opened here. Please contact our office.");
+      return;
+    }
+
+    const known = new Set(everyField().map((f) => f.id));
+    for (const key of Object.keys(values)) delete values[key];
+    for (const [key, value] of Object.entries(payload.values)) if (known.has(key)) values[key] = value;
+    restore();
+
+    $("#messages").replaceChildren(el("div", { className: "msg ok" }, [
+      el("strong", { textContent: "Opened your saved answers." }),
+      el("span", { textContent: "Carry on where you left off, then save again when you are done." }),
+    ]));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  reader.readAsText(file);
+}
+
+function restore() {
+  for (const field of everyField()) {
+    const value = values[field.id];
+    if (field.type === "bool") {
+      for (const radio of document.getElementsByName(field.id)) {
+        const on = String(value) === radio.value;
+        radio.checked = on;
+        radio.parentElement.classList.toggle("on", on);
+      }
+    } else {
+      const control = document.getElementById("f-" + field.id);
+      if (control) control.value = value === undefined ? "" : value;
+    }
+    document.getElementById("q-" + field.id).classList.remove("unanswered");
+  }
+  applyGates();
+  updateCount();
+}
+
+function showError(text) {
+  $("#messages").replaceChildren(el("div", { className: "msg warn" }, [el("strong", { textContent: text })]));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---------- wiring ---------- */
+
+$("#btnSave").addEventListener("click", saveFile);
+$("#btnPrint").addEventListener("click", () => window.print());
+$("#btnOpen").addEventListener("click", () => $("#picker").click());
+$("#picker").addEventListener("change", (event) => {
+  if (event.target.files.length) openFile(event.target.files[0]);
+  event.target.value = "";
+});
+window.addEventListener("beforeunload", (event) => {
+  if (Object.keys(values).length) event.preventDefault();
+});
+
+build();
+</script>
+</body>
+</html>

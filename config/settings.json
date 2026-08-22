@@ -1,0 +1,12 @@
+{
+  "_comment": "Office details. These belong to the firm, not to a matter, so they are set once here instead of being retyped on every intake form. Any field declared in fields.json with \"derived\": true and an id starting with attorney_ is filled from this file. Fill these in before the first real filing — a blank value here stops generation rather than printing a blank signature block.",
+
+  "attorney_short_name": "",
+  "attorney_full_name": "",
+  "attorney_oba": "",
+  "attorney_firm": "",
+  "attorney_address": "",
+  "attorney_city_state_zip": "",
+  "attorney_phone": "",
+  "attorney_email": ""
+}

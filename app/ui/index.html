@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Adoption Filing Generator</title>
+<!--
+  The entire front end. No build step, no framework, no external request:
+  everything this file needs is in this file. The application must work on a
+  machine with the network cable pulled out, because the data is adoption
+  records involving minors.
+
+  There are no hardcoded form fields below. The form is drawn from the field
+  schema the Python side sends back, so adding a field to config/fields.json is
+  all it takes for it to appear here.
+
+  Answers live in memory only — never localStorage — so closing the window
+  leaves nothing behind. Saving an intake is a deliberate act with a file dialog.
+-->
+<style>
+  :root {
+    --ink:        #24221e;
+    --ink-soft:   #5c574f;
+    --ink-faint:  #8b857a;
+    --page:       #f7f5f1;
+    --card:       #ffffff;
+    --line:       #ddd7cc;
+    --line-soft:  #ebe6dc;
+    --accent:     #1f4d3f;
+    --accent-2:   #2c6b57;
+    --danger:     #8c2f28;
+    --danger-bg:  #fdf1ef;
+    --warn:       #8a6212;
+    --warn-bg:    #fdf6e6;
+    --ok:         #1f4d3f;
+    --ok-bg:      #eef4f0;
+    --radius:     7px;
+    --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    display: flex; flex-direction: column;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    background: var(--accent); color: #f4f1ea;
+    padding: 14px 26px; display: flex; align-items: baseline; gap: 16px;
+    flex: none;
+  }
+  header h1 { font: 600 18px/1.2 var(--serif); margin: 0; letter-spacing: .2px; white-space: nowrap; }
+  header .badge {
+    font-size: 11.5px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap;
+    background: rgba(255,255,255,.14); padding: 3px 9px; border-radius: 20px;
+  }
+  header .spacer { flex: 1; }
+  header .path {
+    font: 12px var(--mono); color: #b9cdc4; text-align: right;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%;
+  }
+
+  /* ---------- steps ---------- */
+  nav {
+    display: flex; gap: 4px; padding: 0 22px; background: var(--card);
+    border-bottom: 1px solid var(--line); flex: none;
+  }
+  nav button {
+    background: none; border: none; border-bottom: 2.5px solid transparent;
+    padding: 12px 14px; font: inherit; font-size: 14px; color: var(--ink-faint);
+    cursor: pointer;
+  }
+  nav button .num {
+    display: inline-block; width: 19px; height: 19px; line-height: 19px;
+    border-radius: 50%; background: var(--line-soft); color: var(--ink-soft);
+    font-size: 11.5px; text-align: center; margin-right: 7px;
+  }
+  nav button:hover:not(:disabled) { color: var(--ink); }
+  nav button[aria-current="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  nav button[aria-current="true"] .num { background: var(--accent); color: #fff; }
+  nav button:disabled { opacity: .45; cursor: default; }
+
+  /* ---------- layout ---------- */
+  main { flex: 1; overflow-y: auto; padding: 26px; }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  .step { display: none; }
+  .step.active { display: block; }
+
+  h2 { font: 600 20px/1.3 var(--serif); margin: 0 0 4px; }
+  .lede { color: var(--ink-soft); margin: 0 0 20px; max-width: 66ch; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card > h3 {
+    font: 600 12px/1 var(--sans); letter-spacing: .8px; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 14px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  /* ---------- form ---------- */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 20px; }
+  .field.wide { grid-column: 1 / -1; }
+  .field label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+  .field .req { color: var(--danger); margin-left: 3px; }
+  .field .help { font-size: 12.5px; color: var(--ink-faint); margin: 4px 0 0; line-height: 1.45; }
+  .field input[type=text], .field input[type=date], .field input[type=number], .field select {
+    width: 100%; padding: 7px 9px; font: inherit; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--ink);
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent-2); outline-offset: -1px; border-color: var(--accent-2); }
+  .field.missing input, .field.missing select { border-color: var(--danger); background: var(--danger-bg); }
+  .field.bool { display: flex; align-items: flex-start; gap: 9px; padding-top: 4px; }
+  .field.bool input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--accent); }
+  .field.bool label { font-weight: 600; margin: 0; }
+  .field.bool .help { margin-top: 2px; }
+  .field[hidden] { display: none; }
+
+  /* ---------- choices ---------- */
+  .choices { display: grid; gap: 9px; }
+  .choice {
+    display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer;
+  }
+  .choice:hover { border-color: var(--accent-2); }
+  .choice input { margin: 3px 0 0; accent-color: var(--accent); }
+  .choice.selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: #fcfdfc; }
+  .choice .title { font-weight: 600; font-size: 14.5px; }
+  .choice .meta { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  /* ---------- buttons ---------- */
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
+  .actions .spacer { flex: 1; }
+  button.btn {
+    font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 5px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button.btn:hover:not(:disabled) { border-color: var(--ink-faint); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.btn.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+  button.btn:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- messages ---------- */
+  .note { border-radius: 6px; padding: 12px 15px; margin-bottom: 14px; font-size: 14px; }
+  .note.error { background: var(--danger-bg); border: 1px solid #e8c6c1; color: var(--danger); }
+  .note.warn  { background: var(--warn-bg);   border: 1px solid #ecdcb0; color: var(--warn); }
+  .note.ok    { background: var(--ok-bg);     border: 1px solid #cfe0d7; color: var(--ok); }
+  .note strong { display: block; margin-bottom: 5px; }
+  .note ul { margin: 6px 0 0; padding-left: 20px; }
+  .note li { margin-bottom: 3px; }
+
+  ul.files { list-style: none; margin: 0; padding: 0; }
+  ul.files li {
+    display: flex; align-items: center; gap: 10px; padding: 9px 0;
+    border-bottom: 1px solid var(--line-soft); font-size: 14px;
+  }
+  ul.files li:last-child { border-bottom: none; }
+  ul.files .doc { font-weight: 600; }
+  ul.files .tag {
+    font: 11px var(--mono); color: var(--ink-faint); background: var(--page);
+    border: 1px solid var(--line-soft); padding: 1px 6px; border-radius: 3px;
+  }
+
+  .checkline { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+  .checkline input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .checkline .hint { color: var(--ink-faint); font-size: 12.5px; }
+
+  footer {
+    flex: none; border-top: 1px solid var(--line); background: var(--card);
+    padding: 8px 26px; font-size: 12.5px; color: var(--ink-faint);
+    display: flex; gap: 14px; align-items: center;
+  }
+  footer .spacer { flex: 1; }
+  .spin { opacity: .6; }
+
+  /* Windows display scaling can leave the web view far narrower than the window. */
+  @media (max-width: 820px) {
+    main { padding: 20px 16px; }
+    .grid { grid-template-columns: 1fr; }
+    header { padding: 12px 16px; gap: 10px; }
+    header .path { display: none; }
+    nav { padding: 0 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Adoption Filing Generator</h1>
+  <span class="badge">Local only</span>
+  <span class="spacer"></span>
+  <span class="path" id="outputPath"></span>
+</header>
+
+<nav>
+  <button id="tab-matter" data-step="matter"><span class="num">1</span>Adoption type</button>
+  <button id="tab-intake" data-step="intake" disabled><span class="num">2</span>Intake</button>
+  <button id="tab-review" data-step="review" disabled><span class="num">3</span>Review &amp; generate</button>
+</nav>
+
+<main>
+  <div class="wrap">
+
+    <!-- ---------------- step 1 ---------------- -->
+    <section class="step active" id="step-matter">
+      <div id="boot" class="note warn" hidden></div>
+      <h2>What kind of adoption is this?</h2>
+      <p class="lede">Pick the type and the combination of petitioners and children.
+        Only combinations with a finished template are listed.</p>
+
+      <div class="card">
+        <h3>Adoption type</h3>
+        <div class="choices" id="matterChoices"></div>
+      </div>
+
+      <div class="card" id="variantCard" hidden>
+        <h3>Petitioners and children</h3>
+        <div class="choices" id="variantChoices"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btnLoadIntake">Open a saved intake…</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="btnToIntake" disabled>Continue to intake</button>
+      </div>
+    </section>
+
+    <!-- ---------------- step 2 ---------------- -->
+    <section class="step" id="step-intake">
+      <h2 id="intakeTitle">Intake</h2>
+      <p class="lede">Enter each answer once. Dates, uppercase captions, ages and
+        ordinals are worked out from what you type here.</p>
+
+      <div id="intakeNote"></div>
+      <div id="formGroups"></div>
+
+      <div class="actions">
+        <button class="btn" id="btnBackToMatter">Back</button>
+        <button class="btn" id="btnSaveIntake">Save intake…</button>
+        <button class="btn" id="btnQuestionnaire">Export blank questionnaire…</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="btnToReview">Review</button>
+      </div>
+    </section>
+
+    <!-- ---------------- step 3 ---------------- -->
+    <section class="step" id="step-review">
+      <h2>Review</h2>
+      <p class="lede">Check what will be written before anything is generated.</p>
+
+      <div id="reviewNotes"></div>
+
+      <div class="card">
+        <h3>Documents to be generated</h3>
+        <ul class="files" id="reviewFiles"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Options</h3>
+        <label class="checkline">
+          <input type="checkbox" id="optPdf">
+          <span>Also export PDF <span class="hint" id="pdfHint"></span></span>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btnBackToIntake">Back to intake</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="btnGenerate">Generate documents</button>
+      </div>
+
+      <div id="result" style="margin-top:20px"></div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <span id="status">Starting…</span>
+  <span class="spacer"></span>
+  <span>Nothing on this screen leaves this computer.</span>
+</footer>
+
+<script>
+"use strict";
+
+const state = {
+  catalog: [],
+  matter: null,
+  variant: null,
+  spec: null,
+  values: {},
+  pdfAvailable: false,
+  lastFolder: null,
+};
+
+const $  = (sel) => document.querySelector(sel);
+const el = (tag, props = {}, kids = []) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const kid of [].concat(kids)) node.append(kid);
+  return node;
+};
+const status = (text) => { $("#status").textContent = text; };
+
+/* ---------- bridge ---------- */
+
+async function call(method, payload) {
+  if (!window.pywebview || !window.pywebview.api) {
+    return { ok: false, problems: ["The Python bridge is not available. Start the app with: python -m app.main"] };
+  }
+  try {
+    return await window.pywebview.api[method](payload || {});
+  } catch (err) {
+    return { ok: false, problems: ["" + err] };
+  }
+}
+
+function noteBox(kind, title, items) {
+  const box = el("div", { className: "note " + kind });
+  if (title) box.append(el("strong", { textContent: title }));
+  if (items && items.length) {
+    const list = el("ul");
+    for (const item of items) list.append(el("li", { textContent: item }));
+    box.append(list);
+  }
+  return box;
+}
+
+/* ---------- steps ---------- */
+
+function showStep(name) {
+  for (const section of document.querySelectorAll(".step")) {
+    section.classList.toggle("active", section.id === "step-" + name);
+  }
+  for (const tab of document.querySelectorAll("nav button")) {
+    tab.setAttribute("aria-current", tab.dataset.step === name ? "true" : "false");
+  }
+  document.querySelector("main").scrollTop = 0;
+}
+
+function enableTabs() {
+  $("#tab-intake").disabled = !state.variant;
+  $("#tab-review").disabled = !state.variant;
+}
+
+/* ---------- step 1: matter and variant ---------- */
+
+function renderMatters() {
+  const box = $("#matterChoices");
+  box.replaceChildren();
+  for (const matter of state.catalog) {
+    const input = el("input", { type: "radio", name: "matter", value: matter.id });
+    input.checked = state.matter === matter.id;
+    const label = el("label", { className: "choice" + (input.checked ? " selected" : "") }, [
+      input,
+      el("span", {}, [
+        el("div", { className: "title", textContent: matter.label }),
+        el("div", { className: "meta", textContent: matter.variants.length + " combination(s) available" }),
+      ]),
+    ]);
+    input.addEventListener("change", () => selectMatter(matter.id));
+    box.append(label);
+  }
+}
+
+function selectMatter(id) {
+  state.matter = id;
+  state.variant = null;
+  renderMatters();
+  renderVariants();
+  $("#btnToIntake").disabled = true;
+  enableTabs();
+}
+
+function renderVariants() {
+  const matter = state.catalog.find((m) => m.id === state.matter);
+  const card = $("#variantCard");
+  const box = $("#variantChoices");
+  box.replaceChildren();
+  card.hidden = !matter;
+  if (!matter) return;
+
+  for (const variant of matter.variants) {
+    const input = el("input", { type: "radio", name: "variant", value: variant.id });
+    input.checked = state.variant === variant.id;
+    const docs = variant.documents.length;
+    const label = el("label", { className: "choice" + (input.checked ? " selected" : "") }, [
+      input,
+      el("span", {}, [
+        el("div", { className: "title", textContent: variant.label }),
+        el("div", { className: "meta", textContent:
+          `${variant.petitioners} petitioner(s), ${variant.children} child(ren) · generates ${docs} document(s)` }),
+      ]),
+    ]);
+    input.addEventListener("change", () => selectVariant(variant.id));
+    box.append(label);
+  }
+}
+
+function selectVariant(id) {
+  state.variant = id;
+  renderVariants();
+  $("#btnToIntake").disabled = false;
+  enableTabs();
+}
+
+/* ---------- step 2: the config-driven form ---------- */
+
+async function loadForm(keepValues) {
+  const res = await call("form_spec", { matter: state.matter, variant: state.variant });
+  if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not build the form", res.problems)); return false; }
+  state.spec = res.spec;
+  if (!keepValues) state.values = {};
+  $("#intakeTitle").textContent = res.spec.label;
+  renderForm();
+  return true;
+}
+
+function renderForm() {
+  const host = $("#formGroups");
+  host.replaceChildren();
+
+  for (const group of state.spec.groups) {
+    if (!group.fields.length) continue;
+    const grid = el("div", { className: "grid" });
+    for (const field of group.fields) grid.append(renderField(field));
+    host.append(el("div", { className: "card" }, [el("h3", { textContent: group.label }), grid]));
+  }
+  applyDependencies();
+}
+
+function renderField(field) {
+  const wrap = el("div", { className: "field" + (field.type === "bool" ? " bool" : ""), id: "field-" + field.id });
+  wrap.dataset.field = field.id;
+  if (field.depends_on) wrap.dataset.dependsOn = field.depends_on;
+
+  const label = el("label", { htmlFor: "input-" + field.id, textContent: field.label });
+  if (field.required) label.append(el("span", { className: "req", textContent: "*" }));
+
+  let input;
+  if (field.type === "select") {
+    input = el("select");
+    input.append(el("option", { value: "", textContent: "— choose —" }));
+    for (const option of field.options) {
+      input.append(el("option", { value: option, textContent: option.charAt(0).toUpperCase() + option.slice(1) }));
+    }
+  } else if (field.type === "bool") {
+    input = el("input", { type: "checkbox" });
+  } else {
+    input = el("input", { type: field.type === "date" ? "date" : field.type === "number" ? "number" : "text" });
+  }
+  input.id = "input-" + field.id;
+  input.name = field.id;
+
+  const current = state.values[field.id];
+  if (field.type === "bool") input.checked = current === true;
+  else if (current !== undefined && current !== null) input.value = current;
+
+  input.addEventListener(field.type === "bool" || field.type === "select" ? "change" : "input", () => {
+    state.values[field.id] = field.type === "bool" ? input.checked : input.value;
+    wrap.classList.remove("missing");
+    if (field.type === "bool") applyDependencies();
+  });
+
+  if (field.type === "bool") {
+    wrap.append(input, el("span", {}, [label, field.help ? el("p", { className: "help", textContent: field.help }) : ""]));
+  } else {
+    if (field.type === "text" && /address|name|place/.test(field.id)) wrap.classList.add("wide");
+    wrap.append(label, input);
+    if (field.help) wrap.append(el("p", { className: "help", textContent: field.help }));
+  }
+  return wrap;
+}
+
+/** A field gated behind an unchecked box is hidden, and its answer discarded. */
+function applyDependencies() {
+  for (const wrap of document.querySelectorAll("[data-depends-on]")) {
+    const on = state.values[wrap.dataset.dependsOn] === true;
+    wrap.hidden = !on;
+    if (!on) delete state.values[wrap.dataset.field];
+  }
+}
+
+/* ---------- step 3: review and generate ---------- */
+
+async function loadReview() {
+  const host = $("#reviewNotes");
+  host.replaceChildren(el("p", { className: "spin", textContent: "Checking…" }));
+  const res = await call("review", { matter: state.matter, variant: state.variant, values: state.values });
+  host.replaceChildren();
+  $("#result").replaceChildren();
+
+  if (!res.ok) { host.append(noteBox("error", "Could not review this intake", res.problems)); return; }
+
+  if (res.problems.length) host.append(noteBox("error", "These answers need fixing", res.problems));
+  if (res.missing.length) {
+    host.append(noteBox("warn", `${res.missing.length} required answer(s) still missing`, res.missing));
+  }
+  if (!res.problems.length && !res.missing.length) {
+    host.append(noteBox("ok", "Every required answer is present.", []));
+  }
+
+  // When answers are still missing the file name cannot be worked out yet;
+  // show the unknown part as an ellipsis rather than a raw template tag.
+  const list = $("#reviewFiles");
+  list.replaceChildren();
+  for (const name of res.documents) {
+    list.append(el("li", {}, [
+      el("span", { className: "doc", textContent: name.replace(/\{\{.*?\}\}/g, "…") }),
+      el("span", { className: "tag", textContent: "docx" }),
+    ]));
+  }
+
+  const blocked = res.problems.length > 0 || res.missing.length > 0;
+  $("#btnGenerate").disabled = blocked;
+  $("#btnGenerate").title = blocked ? "Answer every required question first" : "";
+}
+
+async function generate() {
+  const button = $("#btnGenerate");
+  button.disabled = true;
+  status("Generating…");
+  $("#result").replaceChildren(el("p", { className: "spin", textContent: "Writing documents…" }));
+
+  const res = await call("generate", {
+    matter: state.matter, variant: state.variant, values: state.values, pdf: $("#optPdf").checked,
+  });
+
+  const host = $("#result");
+  host.replaceChildren();
+  if (!res.ok) {
+    host.append(noteBox("error", "Nothing was generated", res.problems));
+    button.disabled = false;
+    status("Generation stopped. No files were written.");
+    return;
+  }
+
+  const result = res.result;
+  state.lastFolder = result.folder;
+  const box = noteBox("ok", `${result.files.length} document(s) written.`, []);
+  const list = el("ul", { className: "files" });
+  for (const file of result.files) {
+    list.append(el("li", {}, [
+      el("span", { className: "doc", textContent: file.name }),
+      file.pdf ? el("span", { className: "tag", textContent: "+ pdf" }) : "",
+    ]));
+  }
+  box.append(list);
+  box.append(el("p", { style: "margin:10px 0 0;font-size:12.5px", textContent: result.folder }));
+  host.append(box);
+  if (result.warnings.length) host.append(noteBox("warn", "Note", result.warnings));
+
+  const open = el("button", { className: "btn", textContent: "Open the folder" });
+  open.addEventListener("click", () => call("open_folder", { path: result.folder }));
+  host.append(el("div", { className: "actions" }, [open]));
+
+  button.disabled = false;
+  status(`Wrote ${result.files.length} document(s).`);
+}
+
+/* ---------- intake files ---------- */
+
+async function saveIntake() {
+  status("Saving intake…");
+  const res = await call("save_intake", { matter: state.matter, variant: state.variant, values: state.values });
+  if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not save", res.problems)); return; }
+  status(res.cancelled ? "Save cancelled." : "Intake saved to " + res.path);
+}
+
+async function openIntake() {
+  status("Opening…");
+  const res = await call("choose_intake", {});
+  if (!res.ok) { $("#boot").hidden = false; $("#boot").replaceChildren(noteBox("error", "Could not open that file", res.problems)); return; }
+  if (res.cancelled) { status("Open cancelled."); return; }
+
+  state.matter = res.matter;
+  state.variant = res.variant;
+  renderMatters();
+  renderVariants();
+  enableTabs();
+  $("#btnToIntake").disabled = false;
+
+  state.values = res.values || {};
+  if (!(await loadForm(true))) return;
+  const note = $("#intakeNote");
+  note.replaceChildren();
+  if (res.warnings && res.warnings.length) note.append(noteBox("warn", "Some saved answers were not loaded", res.warnings));
+  showStep("intake");
+  status("Loaded " + res.path);
+}
+
+async function exportQuestionnaire() {
+  status("Building questionnaire…");
+  const res = await call("questionnaire", { matter: state.matter, variant: state.variant });
+  if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not build the questionnaire", res.problems)); return; }
+  status(res.cancelled ? "Export cancelled." : "Questionnaire written to " + res.path);
+}
+
+/* ---------- wiring ---------- */
+
+function wire() {
+  $("#btnToIntake").addEventListener("click", async () => {
+    if (await loadForm(false)) showStep("intake");
+  });
+  $("#btnBackToMatter").addEventListener("click", () => showStep("matter"));
+  $("#btnToReview").addEventListener("click", async () => { showStep("review"); await loadReview(); });
+  $("#btnBackToIntake").addEventListener("click", () => showStep("intake"));
+  $("#btnGenerate").addEventListener("click", generate);
+  $("#btnSaveIntake").addEventListener("click", saveIntake);
+  $("#btnLoadIntake").addEventListener("click", openIntake);
+  $("#btnQuestionnaire").addEventListener("click", exportQuestionnaire);
+
+  for (const tab of document.querySelectorAll("nav button")) {
+    tab.addEventListener("click", async () => {
+      const step = tab.dataset.step;
+      if (step === "intake" && !state.spec) { if (!(await loadForm(true))) return; }
+      showStep(step);
+      if (step === "review") await loadReview();
+    });
+  }
+}
+
+async function boot() {
+  const res = await call("bootstrap", {});
+  const banner = $("#boot");
+  if (!res.ok) {
+    banner.hidden = false;
+    banner.replaceChildren(noteBox("error", "Could not start", res.problems));
+    status("Not ready.");
+    return;
+  }
+
+  state.catalog = res.catalog;
+  state.pdfAvailable = res.pdf_available;
+  $("#outputPath").textContent = "…\\" + res.output_dir.split(/[\\/]/).slice(-2).join("\\");
+  $("#outputPath").title = res.output_dir;
+  $("#optPdf").disabled = !res.pdf_available;
+  $("#pdfHint").textContent = res.pdf_available
+    ? "(via LibreOffice)"
+    : "— LibreOffice was not found on this computer, so PDF export is unavailable.";
+
+  const warnings = [];
+  if (!res.attorney_configured) {
+    warnings.push("No attorney details in config/settings.json yet. Documents that print a signature block will refuse to generate until they are filled in.");
+  }
+  for (const note of res.notes || []) warnings.push(note);
+  if (warnings.length) {
+    banner.hidden = false;
+    banner.replaceChildren(noteBox("warn", "Before the first filing", warnings));
+  }
+
+  if (state.catalog.length === 1) selectMatter(state.catalog[0].id);
+  renderMatters();
+  status("Ready.");
+}
+
+wire();
+if (window.pywebview && window.pywebview.api) boot();
+else window.addEventListener("pywebviewready", boot);
+</script>
+</body>
+</html>
