@@ -93,6 +93,7 @@ python -m app.cli check                         # validate config/ against templ
 python -m app.cli fields dhs dhs_1p_1c          # the intake form for a variant
 python -m app.cli render dhs dhs_1p_1c          # render with placeholder answers
 python -m app.cli render dhs dhs_1p_1c --falsy  # ...and the other side of every branch
+python -m app.cli render dhs dhs_1p_1c --random # a made-up test matter, different each run
 python -m app.cli render dhs dhs_1p_1c --intake intake/saved.json
 python -m app.cli questionnaire dhs dhs_1p_1c   # blank .docx to email to the family
 python -m app.cli import-form dhs dhs_1p_1c responses.csv   # a client's completed form
@@ -144,6 +145,19 @@ straightforward and needs nothing installed by hand beyond Python itself.
 
 Optional, via LibreOffice. If `soffice` is not on the machine, the checkbox is
 disabled with an explanation and .docx generation is unaffected.
+
+## Showing it to someone
+
+**Fill with test data** on the intake screen invents a whole matter in one click:
+every question answered, ready to generate. Press it again for a different one —
+the dates, the county and every yes/no answer change, so successive runs read
+*different paragraphs* rather than the same one with different names.
+
+Every name carries a SAMPLE prefix. That is not fussiness: what comes out is
+otherwise indistinguishable from a real filing sitting in the output folder.
+
+The same thing from the command line is `--random`, with `--seed` to reproduce a
+particular one.
 
 ## Drafts, and the "fail loud" rule
 

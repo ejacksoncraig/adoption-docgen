@@ -451,6 +451,7 @@
 
       <div class="actions">
         <button class="btn" id="btnBackToMatter">Back</button>
+        <button class="btn" id="btnRandom" title="Fill every question with obviously-fake test answers">Fill with test data</button>
         <button class="btn" id="btnSaveIntake">Save intake…</button>
         <button class="btn" id="btnQuestionnaire">Paper questionnaire…</button>
         <span class="spacer"></span>
@@ -871,6 +872,7 @@ async function loadForm(keepValues) {
   $("#intakeTitle").textContent = res.spec.label;
   renderForm();
   updateContext();
+  updateTestDataButton();
   return true;
 }
 
@@ -929,6 +931,7 @@ function renderField(field) {
     wrap.classList.remove("missing");
     if (field.type === "bool") applyDependencies();
     updateProgress();
+    updateTestDataButton();
   });
 
   if (field.type === "bool") {
@@ -1256,6 +1259,38 @@ async function openIntake() {
   status("Loaded " + res.path);
 }
 
+/** Fill the form with a complete fake matter, for trying the program out. */
+async function fillWithTestData() {
+  status("Making up a test matter…", true);
+  const res = await call("random_intake", { matter: state.matter, variant: state.variant });
+  if (!res.ok) {
+    $("#intakeNote").replaceChildren(noteBox("error", "Could not build test data", res.problems));
+    return;
+  }
+
+  state.values = res.values;
+  state.fromClient = null;
+  renderForm();
+
+  $("#intakeNote").replaceChildren(noteText(
+    noteBox("ok", `Filled with ${res.count} test answers.`, []),
+    "Every name starts with SAMPLE so these cannot be mistaken for a real matter. "
+    + "Press the button again for a different one — the dates, the county and every "
+    + "yes/no answer change, so each run exercises different paragraphs."
+  ));
+  updateTestDataButton();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  status(`Filled ${res.count} answers with test data.`);
+}
+
+/** Say plainly when pressing it would discard something. */
+function updateTestDataButton() {
+  const button = $("#btnRandom");
+  if (!button) return;
+  const hasAnswers = Object.keys(state.values).length > 0;
+  button.textContent = hasAnswers ? "Replace with test data" : "Fill with test data";
+}
+
 async function exportQuestionnaire() {
   status("Building questionnaire…", true);
   const res = await call("questionnaire", { matter: state.matter, variant: state.variant });
@@ -1276,6 +1311,7 @@ function wire() {
   $("#btnSaveIntake").addEventListener("click", saveIntake);
   $("#btnLoadIntake").addEventListener("click", openIntake);
   $("#btnQuestionnaire").addEventListener("click", exportQuestionnaire);
+  $("#btnRandom").addEventListener("click", fillWithTestData);
   $("#btnImportResponse").addEventListener("click", importResponse);
   $("#mapperCancel").addEventListener("click", closeMapper);
   $("#mapperImport").addEventListener("click", applyMapping);

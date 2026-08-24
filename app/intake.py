@@ -22,7 +22,8 @@ own intake form from that one edit.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+import random
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -32,7 +33,7 @@ from docx.shared import Pt
 
 from app import __version__
 from app.registry import INTAKE_DIR, OUTPUT_DIR, Registry
-from app.schema import FieldDef, Schema
+from app.schema import FieldDef, Schema, as_bool
 
 INTAKE_FORMAT = 1
 
@@ -320,3 +321,101 @@ def _sample_text(fd: FieldDef) -> str:
                 return f"SAMPLE {who}"
             return text
     return f"SAMPLE {fd.id.replace('_', ' ').upper()}"
+
+
+# --------------------------------------------------------------------------
+# a whole test matter, at one click
+# --------------------------------------------------------------------------
+
+#: Answers that read properly in the document rather than as a generic placeholder.
+#: Nothing here is a name — see the note in random_values about why.
+_SHAPED = {
+    "attorney_fees_summary": (
+        "Hourly Rate = $300.00; Total Hours = {hours}.00 x $300.00 = ${fees:,}.00; "
+        "Filing Fee = $184.14; Amended Birth Certificate = $40.00; Total = ${total:,.2f}."
+    ),
+    "address": "{number} Sample Street, Sampletown, OK 74{zip3}",
+    "place": "Sample {kind} Hospital",
+    "city": "Sampletown",
+    "county": "Sample",
+    "state": "Oklahoma",
+    "race": "Caucasian",
+    "tribe": "Sample Nation",
+}
+
+_HOSPITAL_KINDS = ("Regional", "Memorial", "Community", "General", "County")
+
+
+def random_values(
+    schema: Schema, groups: Iterable[str], seed: int | None = None
+) -> dict[str, Any]:
+    """A complete, valid, obviously-fake intake — a different one each time.
+
+    For showing the program and checking output quickly. Every run varies the
+    dates, the county, the genders and every yes/no and either/or answer, so
+    successive runs exercise *different branches* of the templates: ICWA on then
+    off, relinquished then terminated, a name change and none.
+
+    Names stay unmistakably fake, with a SAMPLE prefix and a number. That is not
+    squeamishness: a generated petition reading "Jennifer Watson" could be
+    mistaken for a real matter by whoever finds it in the output folder, and the
+    documents this produces are otherwise indistinguishable from real ones.
+    """
+    rng = random.Random(seed)
+    tag = rng.randrange(1000, 9999)
+    today = date.today()
+
+    values: dict[str, Any] = {}
+    for fd in schema.input_fields(groups):
+        if fd.default is not None:
+            continue                    # leave it blank so the default is exercised
+        if fd.type == "bool":
+            values[fd.id] = rng.random() < 0.5
+        elif fd.type == "select":
+            values[fd.id] = rng.choice(fd.options) if fd.options else ""
+        elif fd.type == "date":
+            values[fd.id] = _random_date(fd, rng, today)
+        elif fd.type == "number":
+            values[fd.id] = rng.randrange(1, 4)
+        else:
+            values[fd.id] = _random_text(fd, rng, tag)
+
+    # A question behind an unticked box has no answer; leaving one in would be
+    # an answer to a question that was never asked.
+    for fd in schema.input_fields(groups):
+        if fd.depends_on and not as_bool(values.get(fd.depends_on)):
+            values.pop(fd.id, None)
+    return values
+
+
+def _random_date(fd: FieldDef, rng: "random.Random", today: date) -> str:
+    """A date that makes sense for what it is: children are children, adults adults."""
+    if fd.id.endswith("_dob"):
+        span = (1, 17) if fd.id.startswith("child") else (24, 55)
+    elif "marriage" in fd.id:
+        span = (2, 20)
+    else:                                # placements, filings: the recent past
+        span = (1, 6)
+    years = rng.randint(*span)
+    days = rng.randrange(0, 365)
+    return (today - timedelta(days=years * 365 + days)).isoformat()
+
+
+def _random_text(fd: FieldDef, rng: "random.Random", tag: int) -> str:
+    if fd.id == "attorney_fees_summary":
+        hours = rng.randrange(8, 20)
+        fees = hours * 300
+        return _SHAPED[fd.id].format(hours=hours, fees=fees, total=fees + 184.14 + 40)
+
+    for key, shape in _SHAPED.items():
+        if fd.id == key or fd.id.endswith(f"_{key}"):
+            return shape.format(
+                number=rng.randrange(100, 9999),
+                zip3=f"{rng.randrange(0, 999):03d}",
+                kind=rng.choice(_HOSPITAL_KINDS),
+            )
+
+    if fd.id.endswith("_name") or fd.id == "name":
+        who = fd.id.rsplit("_", 1)[0].replace("_", " ").upper()
+        return f"SAMPLE {who} {tag}"
+    return f"SAMPLE {fd.label.upper()} {tag}"

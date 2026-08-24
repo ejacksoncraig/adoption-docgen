@@ -94,6 +94,20 @@ class Api:
         spec = self.registry.form_spec(payload["matter"], payload["variant"])
         return {"ok": True, "spec": spec}
 
+    @guarded
+    def random_intake(self, payload: dict) -> dict:
+        """A complete, obviously-fake intake for trying the program out.
+
+        Different every time, so successive runs exercise different branches of
+        the templates — ICWA on then off, relinquished then terminated, a name
+        change and none. Every name carries a SAMPLE prefix: these documents are
+        otherwise indistinguishable from real ones once they are in the output
+        folder.
+        """
+        variant = self.registry.variant(payload["matter"], payload["variant"])
+        values = intake.random_values(self.registry.schema, variant.field_groups)
+        return {"ok": True, "values": values, "count": len(values)}
+
     # -- review ------------------------------------------------------------
 
     @guarded

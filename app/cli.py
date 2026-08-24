@@ -78,11 +78,16 @@ def cmd_render(args: argparse.Namespace) -> int:
         for warning in loaded["warnings"]:
             print(f"  note: {warning}")
     else:
-        values = intake.sample_values(registry.schema, variant.field_groups, truthy=not args.falsy)
+        if args.random:
+            values = intake.random_values(registry.schema, variant.field_groups, seed=args.seed)
+            print("Using a randomly made-up test matter"
+                  + (f" (seed {args.seed})." if args.seed is not None else "."))
+        else:
+            values = intake.sample_values(registry.schema, variant.field_groups, truthy=not args.falsy)
+            print("Using placeholder answers (no --intake given).")
         for key, value in intake.sample_settings(registry.schema).items():
             if not registry.settings.get(key):
                 registry.settings[key] = value
-        print("Using placeholder answers and placeholder office settings (no --intake given).")
 
     today = date.fromisoformat(args.today) if args.today else None
     try:
@@ -177,6 +182,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("variant")
     p.add_argument("--intake", help="path to a saved intake JSON (default: placeholder answers)")
     p.add_argument("--falsy", action="store_true", help="set every yes/no answer to No, to read the other branch")
+    p.add_argument("--random", action="store_true",
+                   help="make up a complete test matter, different every run")
+    p.add_argument("--seed", type=int, help="repeat a particular --random matter")
     p.add_argument("--pdf", action="store_true", help="also export PDF via LibreOffice")
     p.add_argument("--today", help="pretend today is this date (YYYY-MM-DD), for reproducible output")
     p.add_argument("--out", help=f"output root (default: {OUTPUT_DIR})")
