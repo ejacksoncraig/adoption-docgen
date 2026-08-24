@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import warnings
 import zipfile
 from dataclasses import dataclass, field as dc_field
@@ -327,19 +328,34 @@ def find_soffice() -> str | None:
 
 
 def export_pdf(docx_path: Path, soffice: str | None = None, timeout: int = 120) -> Path:
+    """Convert one document to PDF with LibreOffice.
+
+    Each run gets its own throwaway user profile. Without that, LibreOffice uses
+    a single shared profile per account, and two conversions running at the same
+    time collide: the second either fails outright or quietly attaches to the
+    first process and writes nothing, and the caller is handed a missing file.
+
+    That is unlikely with one person clicking Generate, and certain the moment
+    more than one person is served at once.
+    """
     soffice = soffice or find_soffice()
     if soffice is None:
         raise RenderError(["LibreOffice not found; cannot export PDF"])
 
     try:
-        proc = subprocess.run(
-            [soffice, "--headless", "--norestore", "--convert-to", "pdf", "--outdir",
-             str(docx_path.parent), str(docx_path)],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory(prefix="docgen-soffice-") as profile:
+            proc = subprocess.run(
+                [
+                    soffice,
+                    f"-env:UserInstallation={Path(profile).as_uri()}",
+                    "--headless", "--norestore", "--invisible", "--nologo", "--nolockcheck",
+                    "--convert-to", "pdf", "--outdir", str(docx_path.parent), str(docx_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
     except subprocess.TimeoutExpired:
         raise RenderError([f"PDF export timed out for {docx_path.name}"]) from None
 

@@ -1,13 +1,16 @@
-"""Package the application as a single .exe.
+"""Package the application for the machine you run this on.
 
     python build.py
 
 What ends up in dist/AdoptionFilingGenerator/:
 
-    AdoptionFilingGenerator.exe   the application (UI included)
+    the application               .exe on Windows, .app bundle on macOS
     config/                       fields.json, matters.json, settings.json
     templates/                    the .docx templates
     output/  intake/              empty, created on first use
+
+PyInstaller cannot cross-compile: a Windows build must be made on Windows and a
+macOS build on a Mac. The application code itself is the same on both.
 
 config/ and templates/ are deliberately left *outside* the executable. Adding an
 adoption type or a pleading has to be a matter of dropping a .docx in and editing
@@ -39,6 +42,9 @@ DIST = ROOT / "dist"
 NAME = "AdoptionFilingGenerator"
 BUNDLE = DIST / NAME
 
+#: macOS packages a windowed app as Name.app, with the binary buried inside it.
+MAC = sys.platform == "darwin"
+
 #: PyInstaller's scratch space, deliberately outside the project.
 #: This repository lives in a OneDrive folder, and OneDrive holds handles on
 #: directories while it syncs them — which makes PyInstaller's --clean fail with
@@ -59,6 +65,17 @@ KEEP_DIRS = ("output", "intake")
 #: office's own attorney details, so an existing copy is carried across.
 PRESERVE = ("config/settings.json",)
 
+#: Packages PyInstaller does not always find on its own, and the check that they
+#: made it in. pypdf is imported inside a function — only when a client's form
+#: arrives as a PDF — and PyInstaller's scan missed it, so the packaged app was
+#: built without it and would have failed at the moment someone used the feature.
+COLLECT = ("webview", "pypdf")
+
+#: The built application checks its own dependencies; see main.self_check. Asking
+#: the .exe whether it can import what it needs beats inspecting the folder, which
+#: only sees packages PyInstaller happened to leave loose — the pure-Python ones
+#: live inside the archive and look missing from the outside.
+
 
 def run_pyinstaller() -> None:
     separator = ";" if sys.platform == "win32" else ":"
@@ -69,7 +86,7 @@ def run_pyinstaller() -> None:
         "--windowed",                      # no console window behind the app
         "--name", NAME,
         "--add-data", f"{ROOT / 'app' / 'ui'}{separator}ui",
-        "--collect-all", "webview",
+        *[argument for package in COLLECT for argument in ("--collect-all", package)],
         "--distpath", str(STAGING),
         "--workpath", str(WORK),
         "--specpath", str(WORK),
@@ -120,6 +137,34 @@ def install_program() -> None:
         else:
             shutil.copy2(item, target)
         print(f"  installed {item.name}")
+
+
+def built_executable() -> Path:
+    """The thing to run, wherever this platform put it."""
+    if MAC:
+        inside = BUNDLE / f"{NAME}.app" / "Contents" / "MacOS" / NAME
+        return inside if inside.exists() else BUNDLE / NAME
+    return BUNDLE / f"{NAME}.exe"
+
+
+def verify_bundle() -> str | None:
+    """Ask the built application whether it can import everything it needs.
+
+    Returns None when it is sound, or a description of what went wrong.
+    """
+    exe = built_executable()
+    if not exe.exists():
+        return f"the built application is not where it was expected ({exe})"
+    try:
+        finished = subprocess.run(
+            [str(exe), "--self-check"], capture_output=True, text=True, timeout=120, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"the built application could not be run ({exc})"
+
+    if finished.returncode != 0:
+        return (finished.stderr or finished.stdout or "").strip() or f"exit code {finished.returncode}"
+    return None
 
 
 def read_preserved() -> dict[str, str]:
@@ -174,6 +219,16 @@ def main() -> int:
     install_program()
     copy_alongside(kept)
     shutil.rmtree(STAGING, ignore_errors=True)
+
+    problem = verify_bundle()
+    if problem:
+        print("", file=sys.stderr)
+        print("The build is incomplete. Do not ship this copy.", file=sys.stderr)
+        print(problem, file=sys.stderr)
+        print("Add the missing package to COLLECT in this script, then build again.",
+              file=sys.stderr)
+        return 1
+    print("  self-check: all dependencies present")
 
     print(f"\nBuilt {BUNDLE / (NAME + '.exe')}")
     settings = json.loads((BUNDLE / "config" / "settings.json").read_text(encoding="utf-8"))

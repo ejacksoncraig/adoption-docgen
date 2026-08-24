@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import docx
 import pytest
 from jinja2 import UndefinedError
@@ -293,3 +295,68 @@ def test_pdf_export_when_libreoffice_is_present(registry, tmp_path, today):
     assert result.files[0].pdf is not None
     assert result.files[0].pdf.exists()
     assert result.files[0].pdf.stat().st_size > 1000
+
+
+# --------------------------------------------------------------------------
+# PDF export under concurrency
+# --------------------------------------------------------------------------
+
+
+def test_each_pdf_conversion_gets_its_own_libreoffice_profile(monkeypatch, tmp_path):
+    """LibreOffice shares one profile per account unless told otherwise, and two
+    conversions running at once against it collide — the second either fails or
+    silently writes nothing. Certain to happen the moment more than one person is
+    served at once."""
+    seen = []
+
+    class FakeProc:
+        returncode = 0
+        stdout = stderr = ""
+
+    def fake_run(command, **_kwargs):
+        seen.append(command)
+        Path(command[-1]).with_suffix(".pdf").write_bytes(b"%PDF-1.4\n")
+        return FakeProc()
+
+    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+
+    for name in ("one.docx", "two.docx"):
+        document = tmp_path / name
+        docx.Document().save(str(document))
+        engine.export_pdf(document, soffice="soffice")
+
+    profiles = [
+        argument for command in seen for argument in command
+        if argument.startswith("-env:UserInstallation=")
+    ]
+    assert len(profiles) == 2, "every conversion must name a profile"
+    assert profiles[0] != profiles[1], "two conversions shared a profile"
+    assert all(p.startswith("-env:UserInstallation=file://") for p in profiles)
+
+
+def test_a_conversion_profile_does_not_outlive_the_conversion(monkeypatch, tmp_path):
+    """A throwaway profile is a few MB; leaving one behind per PDF would fill a
+    server's disk quietly."""
+    captured = {}
+
+    class FakeProc:
+        returncode = 0
+        stdout = stderr = ""
+
+    def fake_run(command, **_kwargs):
+        captured["profile"] = next(
+            a.split("=", 1)[1] for a in command if a.startswith("-env:UserInstallation=")
+        )
+        Path(command[-1]).with_suffix(".pdf").write_bytes(b"%PDF-1.4\n")
+        return FakeProc()
+
+    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    document = tmp_path / "one.docx"
+    docx.Document().save(str(document))
+    engine.export_pdf(document, soffice="soffice")
+
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    left = Path(url2pathname(urlparse(captured["profile"]).path))
+    assert not left.exists()

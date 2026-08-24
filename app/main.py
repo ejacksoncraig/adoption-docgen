@@ -18,7 +18,7 @@ from typing import Any, Callable
 
 import webview
 
-from app import engine, intake
+from app import engine, intake, responses
 from app.registry import INTAKE_DIR, OUTPUT_DIR, UI_DIR, Registry
 from app.schema import ConfigError, IntakeError
 
@@ -50,7 +50,17 @@ def guarded(fn: Callable[..., dict]) -> Callable[..., dict]:
 
 
 class Api:
-    """Methods callable from JavaScript as ``pywebview.api.<name>(payload)``."""
+    """Methods callable from JavaScript as ``pywebview.api.<name>(payload)``.
+
+    The same object serves the browser front end over HTTP; see app/server.py.
+    Only the file-dialog methods differ between the two, so there is one
+    implementation of generating, reviewing and importing, and no way for the
+    window and the browser to disagree about what the app does.
+    """
+
+    #: Which front end this is talking to. The browser cannot open a native file
+    #: dialog, so the page offers its own picker instead; see BrowserApi.
+    mode = "desktop"
 
     def __init__(self, registry: Registry):
         self.registry = registry
@@ -70,6 +80,7 @@ class Api:
             "pdf_available": engine.find_soffice() is not None,
             "attorney_configured": bool(settings.get("attorney_short_name")),
             "saved_intakes": intake.list_intakes(),
+            "mode": self.mode,
         }
 
     @guarded
@@ -180,6 +191,108 @@ class Api:
             "family_remaining": sorted(missing & for_family),
         }
 
+    # -- a form the client already filled in --------------------------------
+
+    @guarded
+    def choose_response(self, payload: dict) -> dict:
+        """Pick a form export and work out which column is which field.
+
+        Nothing is imported yet. This returns what the app *thinks* the columns
+        mean, for staff to check, because a column quietly read into the wrong
+        field is a wrong name in a petition and nothing on screen would say so.
+        """
+        if self._window is None:
+            return _fail(["No window available to open a file dialog."])
+        chosen = self._window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            directory=str(INTAKE_DIR),
+            allow_multiple=False,
+            file_types=("Client's completed form (*.csv;*.tsv;*.pdf)", "All files (*.*)"),
+        )
+        if not chosen:
+            return {"ok": True, "cancelled": True}
+        path = chosen[0] if isinstance(chosen, (list, tuple)) else chosen
+        return self.read_response({**payload, "path": path})
+
+    @guarded
+    def read_response(self, payload: dict) -> dict:
+        matter, variant_id = payload["matter"], payload["variant"]
+        variant = self.registry.variant(matter, variant_id)
+        schema = self.registry.schema
+
+        remembered = responses.load_mapping()
+        sheet = responses.read_any(Path(payload["path"]), schema, variant.field_groups, remembered)
+        columns = responses.match_columns(sheet, schema, variant.field_groups, remembered)
+        return {
+            "ok": True,
+            "path": str(sheet.path),
+            "name": sheet.path.name,
+            "columns": [column.as_dict() for column in columns],
+            "rows": sheet.row_labels(),
+            "choices": self._field_choices(variant.field_groups),
+        }
+
+    @guarded
+    def import_response(self, payload: dict) -> dict:
+        """Apply the mapping staff confirmed and hand back the answers."""
+        matter, variant_id = payload["matter"], payload["variant"]
+        variant = self.registry.variant(matter, variant_id)
+        schema = self.registry.schema
+
+        sheet = responses.read_any(
+            Path(payload["path"]), schema, variant.field_groups, responses.load_mapping()
+        )
+        confirmed = payload.get("mapping") or {}
+        columns = [
+            responses.Column(
+                index=index,
+                header=header,
+                samples=sheet.samples(index),
+                field_id=confirmed.get(str(index)) or None,
+                confidence="remembered",
+            )
+            for index, header in enumerate(sheet.headers)
+        ]
+
+        values, notes = responses.to_values(sheet, int(payload.get("row", 0)), columns, schema)
+        if payload.get("remember", True):
+            responses.save_mapping(columns)
+
+        missing = set(schema.missing_required(values, variant.field_groups))
+        for_family = {
+            schema.label_for(fd)
+            for fd in schema.input_fields(variant.field_groups)
+            if schema.on_questionnaire(fd)
+        }
+        return {
+            "ok": True,
+            "values": values,
+            "notes": notes,
+            "answered": sorted(values),
+            "staff_remaining": sorted(missing - for_family),
+            "family_remaining": sorted(missing & for_family),
+        }
+
+    def _field_choices(self, groups: list[str]) -> list[dict]:
+        """The dropdown staff pick from when a column guessed wrong.
+
+        Every option carries its group. Six fields are called "Date of birth", and
+        this dropdown is the one place where telling the parent's from the child's
+        actually matters — an unqualified list would hide the very mistake the
+        screen exists to catch.
+        """
+        schema = self.registry.schema
+        return [
+            {
+                "label": schema.groups[group_id].get("label", group_id),
+                "fields": [
+                    {"id": fd.id, "label": fd.label, "qualified": schema.label_for(fd)}
+                    for fd in schema.input_fields([group_id])
+                ],
+            }
+            for group_id in schema.group_order(groups)
+        ]
+
     # -- questionnaire -----------------------------------------------------
 
     @guarded
@@ -247,7 +360,37 @@ def show_config_error(exc: ConfigError) -> None:
     webview.start()
 
 
+#: Everything the application needs at some point, including what it imports only
+#: when the moment comes. pypdf is loaded the first time a client's form arrives
+#: as a PDF — months after packaging, in front of somebody — so "it starts up
+#: fine" proves nothing about it.
+REQUIRED_MODULES = ("docx", "docxtpl", "jinja2", "lxml", "pypdf", "webview")
+
+
+def self_check() -> int:
+    """Import every dependency and report whether any is missing.
+
+    Run by build.py against the built .exe. A packaged application that is missing
+    a lazily-imported library looks perfectly healthy until the day someone uses
+    the feature that needs it, which is the worst possible time to find out.
+    """
+    missing = []
+    for name in REQUIRED_MODULES:
+        try:
+            __import__(name)
+        except Exception as exc:                       # noqa: BLE001 - report them all
+            missing.append(f"{name}: {exc}")
+
+    for name in missing:
+        print(f"missing dependency: {name}", file=sys.stderr)
+    print("self-check: " + ("incomplete" if missing else "all dependencies present"), file=sys.stderr)
+    return 1 if missing else 0
+
+
 def main() -> int:
+    if "--self-check" in sys.argv:
+        return self_check()
+
     try:
         registry = Registry.load()
     except ConfigError as exc:
@@ -262,9 +405,11 @@ def main() -> int:
         WINDOW_TITLE,
         str(UI_DIR / "index.html"),
         js_api=api,
-        width=1180,
-        height=880,
-        min_size=(900, 640),
+        # Windows display scaling shrinks the web view well below these numbers,
+        # so the window is roomier than it looks; the layout folds at 880 CSS px.
+        width=1320,
+        height=900,
+        min_size=(940, 660),
         text_select=True,
     )
     api._window = window

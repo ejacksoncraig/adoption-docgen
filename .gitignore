@@ -5,6 +5,12 @@ intake/*
 *.filled.docx
 questionnaire_*.docx
 
+# A form a client filled in holds their answers, whatever shape it arrived in
+*.csv
+*.tsv
+*.pdf
+!tests/**/*.csv
+
 # Original unscrubbed source documents
 templates/_source/
 *.doc

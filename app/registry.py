@@ -31,12 +31,21 @@ from app.schema import ConfigError, Schema
 def project_root() -> Path:
     """Where config/ and templates/ live.
 
-    Frozen: next to the .exe, so staff can drop in a new template and edit
+    Frozen: beside the application, so staff can drop in a new template and edit
     matters.json without a rebuild — that expandability is the whole point.
     Source: the repository root.
+
+    On macOS a packaged app is a bundle: the executable sits at
+    ``Name.app/Contents/MacOS/Name``, so the plain parent directory is *inside*
+    the bundle. Config left there would be invisible in Finder and thrown away by
+    the next install, so the bundle is stepped out of to give the same
+    arrangement as Windows — config/ and templates/ next to the thing you launch.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        beside = Path(sys.executable).resolve().parent
+        if beside.name == "MacOS" and beside.parent.name == "Contents":
+            return beside.parent.parent.parent
+        return beside
     return Path(__file__).resolve().parent.parent
 
 
