@@ -70,10 +70,27 @@ def test_generate_writes_documents(api, tmp_path, monkeypatch):
     assert (tmp_path / res["result"]["folder"].split("\\")[-1]).exists()
 
 
-def test_generate_reports_problems_instead_of_raising(api):
+def test_an_empty_intake_produces_a_draft_rather_than_refusing(api, tmp_path, monkeypatch):
+    """Staff can take an unfinished petition away to work on. What they cannot do
+    is end up with something that looks finished and is not."""
+    monkeypatch.setattr("app.engine.OUTPUT_DIR", tmp_path)
     res = api.generate({"matter": PILOT_MATTER, "variant": PILOT_VARIANT, "values": {}})
+
+    assert res["ok"] is True
+    assert res["result"]["draft"] is True
+    assert res["result"]["gaps"], "a draft must say what is still unanswered"
+    assert all(f["name"].startswith("DRAFT - ") for f in res["result"]["files"])
+
+
+def test_a_wrong_answer_still_refuses(api):
+    """Absent is forgiven; wrong is not. A date that is not a date would put
+    nonsense in a filing rather than a visible gap."""
+    res = api.generate({
+        "matter": PILOT_MATTER, "variant": PILOT_VARIANT,
+        "values": {**fixtures.BASE, "child1_dob": "whenever"},
+    })
     assert res["ok"] is False
-    assert any("required" in p for p in res["problems"])
+    assert any("not a date" in problem for problem in res["problems"])
 
 
 @pytest.mark.parametrize(

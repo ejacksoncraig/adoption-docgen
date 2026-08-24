@@ -35,6 +35,16 @@ from app.registry import OUTPUT_DIR, Document, Registry, jinja_env, string_varia
 #: Strings that must never survive into a generated document.
 FORBIDDEN = ("XXX", "{{", "{%", "}}", "%}")
 
+#: How an unanswered question appears in a draft. Deliberately loud: square
+#: brackets and the field's own name, so a gap is impossible to read past. The
+#: alternative — leaving it empty — is the one thing PROJECT_BRIEF.md says must
+#: never happen, because a petition with a blank where a name goes looks finished.
+DRAFT_MARK = "[ {label} ]"
+
+#: Prefixed to every file of an unfinished filing, so a draft cannot be mistaken
+#: for something ready to file, in the folder or in an email attachment.
+DRAFT_PREFIX = "DRAFT - "
+
 _ILLEGAL_FILENAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
@@ -58,6 +68,12 @@ class GenerationResult:
     folder: Path
     files: list[GeneratedFile] = dc_field(default_factory=list)
     warnings: list[str] = dc_field(default_factory=list)
+    #: Labels of the questions that were unanswered, if this was a draft.
+    gaps: list[str] = dc_field(default_factory=list)
+
+    @property
+    def is_draft(self) -> bool:
+        return bool(self.gaps)
 
     def as_dict(self) -> dict:
         return {
@@ -67,6 +83,8 @@ class GenerationResult:
                 for f in self.files
             ],
             "warnings": self.warnings,
+            "draft": self.is_draft,
+            "gaps": self.gaps,
         }
 
 
@@ -107,6 +125,40 @@ def find_leftovers(text: str) -> list[str]:
 # --------------------------------------------------------------------------
 # rendering
 # --------------------------------------------------------------------------
+
+
+def fill_gaps(
+    used: set[str],
+    context: dict[str, Any],
+    registry: Registry,
+    values: dict[str, Any],
+    may_be_absent: set[str] | None = None,
+) -> list[str]:
+    """Put a visible marker where an unanswered question would have left a blank.
+
+    Returns the labels of the gaps, for telling staff what is still outstanding.
+    A question that does not apply is skipped, not marked: ``tribe`` is not
+    missing from a filing where ICWA does not apply, and the template guards it.
+    """
+    schema = registry.schema
+    may_be_absent = may_be_absent or set()
+    gaps: list[str] = []
+
+    for var in sorted(used):
+        if var in context:
+            continue
+        fd = schema.fields.get(var)
+        if fd is None or var in may_be_absent:
+            continue
+        if fd.depends_on and not schema.applicable(fd, values):
+            continue
+        # Name the question staff can actually answer, not the derived field:
+        # nobody types child1_birth_day, they type the date of birth it comes from.
+        label = schema.answerable_label(var)
+        context[var] = DRAFT_MARK.format(label=label)
+        gaps.append(label)
+
+    return sorted(set(gaps))
 
 
 def check_context(
@@ -208,9 +260,12 @@ def resolve_output_name(document: Document, context: dict[str, Any]) -> str:
     return safe_filename(rendered)
 
 
-def folder_name(matter_id: str, context: dict[str, Any], today: date) -> str:
+def folder_name(matter_id: str, context: dict[str, Any], today: date, draft: bool = False) -> str:
     subject = context.get("child1_name") or context.get("petitioner1_name") or matter_id
-    return safe_filename(f"{matter_id}_{subject}_{today.isoformat()}").replace(" ", "_")
+    # A draft's subject may itself be a marker; strip the brackets out of the path.
+    subject = re.sub(r"[\[\]]", "", str(subject)).strip() or matter_id
+    stem = safe_filename(f"{matter_id}_{subject}_{today.isoformat()}").replace(" ", "_")
+    return f"DRAFT_{stem}" if draft else stem
 
 
 # --------------------------------------------------------------------------
@@ -227,11 +282,18 @@ def generate(
     today: date | None = None,
     pdf: bool = False,
     output_root: Path | None = None,
+    draft: bool = False,
 ) -> GenerationResult:
     """Render every document for a variant into one dated folder.
 
     Nothing is written until every document has passed its pre-render check, so a
     half-generated folder is not a state staff can end up in.
+
+    ``draft`` allows an unfinished intake through. Unanswered questions are not
+    left blank — each prints as ``[ Child — Date of birth ]`` and every file is
+    named ``DRAFT - …``, so an incomplete filing cannot be mistaken for a finished
+    one either on the page or in the folder. Answers that are *wrong* still stop
+    generation; only absent ones are forgiven.
     """
     today = today or date.today()
     variant = registry.variant(matter_id, variant_id)
@@ -239,9 +301,12 @@ def generate(
     if not documents:
         raise RenderError([f"variant {variant_id} has no ready templates to generate"])
 
-    context = registry.schema.build_context(values, variant.field_groups, registry.settings, today)
+    context = registry.schema.build_context(
+        values, variant.field_groups, registry.settings, today, allow_missing=draft
+    )
 
     problems: list[str] = []
+    gaps: list[str] = []
     plan: list[tuple[Document, Path, set[str]]] = []
     for doc in documents:
         path = registry.template_path(doc.template)
@@ -250,18 +315,25 @@ def generate(
             continue
         used = template_variables(path) | string_variables(doc.output_name)
         optional = registry.schema.ids_for_groups(doc.extra_field_groups)
-        problems.extend(check_context(used, context, registry, values, optional))
+        if draft:
+            gaps.extend(fill_gaps(used, context, registry, values, optional))
+        else:
+            problems.extend(check_context(used, context, registry, values, optional))
         plan.append((doc, path, used))
     if problems:
         raise RenderError(_dedupe(problems))
+    gaps = sorted(set(gaps))
 
     root = output_root or OUTPUT_DIR
-    folder = root / folder_name(matter_id, context, today)
+    folder = root / folder_name(matter_id, context, today, draft=bool(gaps))
     folder.mkdir(parents=True, exist_ok=True)
-    result = GenerationResult(folder=folder)
+    result = GenerationResult(folder=folder, gaps=gaps)
 
     for doc, path, _used in plan:
-        out_path = _unique(folder / resolve_output_name(doc, context))
+        name = resolve_output_name(doc, context)
+        if gaps:
+            name = DRAFT_PREFIX + name
+        out_path = _unique(folder / name)
         render_document(path, context, out_path)
         result.files.append(GeneratedFile(template=doc.template, path=out_path))
 

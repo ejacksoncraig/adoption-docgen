@@ -70,16 +70,22 @@
 
   /* ================= left rail ================= */
   .rail {
-    grid-area: rail; background: var(--accent); color: #e9efec;
+    grid-area: rail; color: #e9efec;
+    background: linear-gradient(178deg, #235746 0%, var(--accent) 42%, #173d31 100%);
     display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: inset -1px 0 0 rgba(0,0,0,.18);
   }
-  .brand { padding: 20px 20px 16px; display: flex; gap: 11px; align-items: flex-start; }
+  .brand { padding: 22px 20px 18px; display: flex; gap: 12px; align-items: flex-start; }
   .brand .mark {
-    width: 30px; height: 30px; border-radius: 7px; background: rgba(255,255,255,.13);
-    display: grid; place-items: center; color: #dfe9e4;
+    width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+    background: rgba(255,255,255,.14); color: #eaf2ee;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 3px rgba(0,0,0,.2);
   }
-  .brand h1 { font: 600 15.5px/1.25 var(--display); margin: 0; letter-spacing: .1px; color: #fff; }
-  .brand .sub { font-size: 11.5px; color: #9fbdb0; letter-spacing: .3px; }
+  .brand h1 { font: 600 15.5px/1.28 var(--display); margin: 0; letter-spacing: .1px; color: #fff; }
+  .brand .sub {
+    font-size: 10.5px; color: #96b7a8; letter-spacing: 1.1px; text-transform: uppercase;
+    display: block; margin-top: 3px;
+  }
 
   /* steps */
   nav { padding: 6px 12px; display: flex; flex-direction: column; gap: 2px; }
@@ -89,15 +95,19 @@
     padding: 9px 10px; font: inherit; font-size: 13.5px; color: #b9cdc4;
   }
   nav button .num {
-    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center;
     background: rgba(255,255,255,.12); color: #cfe0d8;
     font-size: 11.5px; font-weight: 600; flex: none;
+    transition: background .15s, color .15s;
   }
-  nav button:hover:not(:disabled) { background: rgba(255,255,255,.07); color: #f0f5f2; }
-  nav button[aria-current="true"] { background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+  nav button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #f0f5f2; }
+  nav button[aria-current="true"] {
+    background: rgba(255,255,255,.15); color: #fff; font-weight: 600;
+    box-shadow: inset 2px 0 0 #7fc0a4;
+  }
   nav button[aria-current="true"] .num { background: #fff; color: var(--accent); }
-  nav button.done .num { background: rgba(255,255,255,.28); color: #fff; }
-  nav button:disabled { opacity: .4; cursor: default; }
+  nav button.done .num { background: #7fc0a4; color: #14342a; }
+  nav button:disabled { opacity: .38; cursor: default; }
 
   .rail hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: 12px 16px; }
 
@@ -142,20 +152,22 @@
 
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
-    box-shadow: var(--shadow-sm); margin-bottom: 16px; overflow: hidden;
+    box-shadow: var(--shadow-sm); margin-bottom: 18px; overflow: hidden;
+    transition: box-shadow .18s, border-color .18s;
   }
+  .card:hover { box-shadow: var(--shadow); }
   .card > h3 {
     display: flex; align-items: center; gap: 9px; margin: 0;
-    font: 600 11.5px/1 var(--sans); letter-spacing: .8px; text-transform: uppercase;
-    color: var(--ink-faint); padding: 14px 20px; border-bottom: 1px solid var(--line-soft);
-    background: var(--sunken);
+    font: 600 11px/1 var(--sans); letter-spacing: 1px; text-transform: uppercase;
+    color: var(--ink-soft); padding: 15px 22px; border-bottom: 1px solid var(--line-soft);
+    background: linear-gradient(var(--sunken), #f7f4ee);
   }
   .card > h3 .count {
     margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 11.5px;
     font-weight: 500; color: var(--ink-faint);
   }
   .card > h3 .count.done { color: var(--accent-hi); }
-  .card .body { padding: 18px 20px 20px; }
+  .card .body { padding: 20px 22px 22px; }
 
   /* ---- form ---- */
   /* Fits itself to the card, not to the window: two columns where there is room,
@@ -171,8 +183,9 @@
   }
   .field .help { font-size: 12px; color: var(--ink-faint); margin: 5px 0 0; line-height: 1.45; }
   input[type=text], input[type=date], input[type=number], select, textarea {
-    width: 100%; padding: 8px 11px; font: inherit; font-size: 14px;
-    border: 1px solid var(--line); border-radius: var(--r-sm); background: #fff; color: var(--ink);
+    width: 100%; padding: 9px 12px; font: inherit; font-size: 14px;
+    border: 1px solid var(--line); border-radius: var(--r); background: #fff; color: var(--ink);
+    box-shadow: inset 0 1px 1px rgba(31,29,26,.03);
     transition: border-color .12s, box-shadow .12s;
   }
   input:hover:not(:disabled), select:hover:not(:disabled) { border-color: #cdc6ba; }
@@ -188,13 +201,16 @@
   /* ---- choices ---- */
   .choices { display: grid; gap: 8px; }
   .choice {
-    display: flex; gap: 12px; align-items: flex-start; padding: 13px 15px;
+    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px;
     border: 1px solid var(--line); border-radius: var(--r); background: #fff; cursor: pointer;
-    transition: border-color .12s, background .12s;
+    transition: border-color .14s, background .14s, box-shadow .14s;
   }
-  .choice:hover { border-color: var(--accent-hi); background: #fdfefd; }
+  .choice:hover { border-color: var(--accent-hi); background: #fdfefd; box-shadow: var(--shadow-sm); }
   .choice input { margin: 2px 0 0; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
-  .choice.selected { border-color: var(--accent); background: var(--accent-wash); }
+  .choice.selected {
+    border-color: var(--accent); background: var(--accent-wash);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
   .choice .title { font-weight: 600; font-size: 14.5px; }
   .choice .meta { font-size: 12.5px; color: var(--ink-faint); margin-top: 1px; }
 
@@ -209,9 +225,16 @@
   }
   button.btn:hover:not(:disabled) { border-color: #c6bfb2; background: #fdfcfa; }
   button.btn:active:not(:disabled) { transform: translateY(1px); }
-  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.btn.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+    box-shadow: 0 1px 2px rgba(29,75,61,.25);
+  }
   button.btn.primary:hover:not(:disabled) { background: var(--accent-hi); border-color: var(--accent-hi); }
   button.btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+  /* A draft is a different act from filing something; the button should not
+     look identical to the one that produces a finished filing. */
+  button.btn.primary.drafting { background: var(--warn); border-color: var(--warn); }
+  button.btn.primary.drafting:hover:not(:disabled) { background: #6a4a05; border-color: #6a4a05; }
 
   /* ---- notes ---- */
   .note {
@@ -227,6 +250,11 @@
   .note ul { margin: 6px 0 0; padding-left: 18px; }
   .note li { margin-bottom: 2px; }
   .note p { margin: 6px 0 0; }
+  .note .linky {
+    background: none; border: 0; padding: 4px 0 0; margin: 0; font: inherit; font-size: 12.5px;
+    color: inherit; opacity: .8; text-decoration: underline; cursor: pointer;
+  }
+  .note .linky:hover { opacity: 1; }
 
   /* ---- file list ---- */
   ul.files { list-style: none; margin: 0; padding: 0; }
@@ -623,15 +651,33 @@ async function uploadFile(file) {
   return call("upload", { name: file.name, data: btoa(binary) });
 }
 
+/* A list long enough to fill the screen stops being read and pushes whatever
+   came of the action out of view. Show enough to be useful, then say how many
+   more there are. */
+const LIST_LIMIT = 8;
+
 function noteBox(kind, title, items) {
   const box = el("div", { className: "note " + kind });
   box.append(el("span", { className: "icon" }, [icon(ICON[kind === "ok" ? "ok" : kind === "error" ? "error" : "warn"])]));
   const text = el("div", { className: "txt" });
   if (title) text.append(el("strong", { textContent: title }));
+
   if (items && items.length) {
     const list = el("ul");
-    for (const item of items) list.append(el("li", { textContent: item }));
+    for (const item of items.slice(0, LIST_LIMIT)) list.append(el("li", { textContent: item }));
     text.append(list);
+    if (items.length > LIST_LIMIT) {
+      const rest = items.length - LIST_LIMIT;
+      const more = el("button", {
+        className: "linky",
+        textContent: `and ${rest} more — show all`,
+      });
+      more.addEventListener("click", () => {
+        for (const item of items.slice(LIST_LIMIT)) list.append(el("li", { textContent: item }));
+        more.remove();
+      });
+      text.append(more);
+    }
   }
   box.append(text);
   return box;
@@ -661,8 +707,13 @@ function showStep(name) {
   const at = ORDER.indexOf(name);
   for (const tab of document.querySelectorAll("nav button")) {
     const index = ORDER.indexOf(tab.dataset.step);
+    const done = index < at && !tab.disabled;
     tab.setAttribute("aria-current", index === at ? "true" : "false");
-    tab.classList.toggle("done", index < at && !tab.disabled);
+    tab.classList.toggle("done", done);
+
+    const num = tab.querySelector(".num");
+    if (!num.dataset.step) num.dataset.step = num.textContent;   // remember the digit
+    num.textContent = done ? "✓" : num.dataset.step;
   }
   document.querySelector("main").scrollTop = 0;
 }
@@ -913,7 +964,11 @@ async function loadReview() {
 
   if (res.problems.length) host.append(noteBox("error", "These answers need fixing", res.problems));
   if (res.missing.length) {
-    host.append(noteBox("warn", `${res.missing.length} required answer(s) still missing`, res.missing));
+    host.append(noteText(
+      noteBox("warn", `${res.missing.length} question(s) not yet answered`, res.missing),
+      "You can still generate. Each gap prints as a marker naming the question, "
+      + "and every file is named DRAFT so it cannot be mistaken for a finished filing."
+    ));
   }
   if (!res.problems.length && !res.missing.length) {
     host.append(noteBox("ok", "Every required answer is present.", []));
@@ -930,15 +985,22 @@ async function loadReview() {
     ]));
   }
 
-  const blocked = res.problems.length > 0 || res.missing.length > 0;
-  $("#btnGenerate").disabled = blocked;
-  $("#btnGenerate").title = blocked ? "Answer every required question first" : "";
+  // Only a wrong answer blocks. An unanswered one produces a draft.
+  const button = $("#btnGenerate");
+  button.disabled = res.blocked;
+  button.textContent = res.draft ? "Generate draft" : "Generate documents";
+  button.classList.toggle("drafting", Boolean(res.draft));
+  button.title = res.blocked
+    ? "Correct the answers above first"
+    : res.draft
+      ? "Generates a draft: unanswered questions print as markers"
+      : "";
 }
 
 async function generate() {
   const button = $("#btnGenerate");
   button.disabled = true;
-  status("Generating…", true);
+  status(button.classList.contains("drafting") ? "Generating draft…" : "Generating…", true);
   $("#result").replaceChildren();
 
   const res = await call("generate", {
@@ -956,7 +1018,13 @@ async function generate() {
 
   const result = res.result;
   state.lastFolder = result.folder;
-  const box = noteBox("ok", `${result.files.length} document(s) written.`, []);
+  const box = noteBox(
+    result.draft ? "warn" : "ok",
+    result.draft
+      ? `${result.files.length} draft document(s) written — not ready to file.`
+      : `${result.files.length} document(s) written.`,
+    []
+  );
   const list = el("ul", { className: "files" });
   for (const file of result.files) {
     list.append(el("li", {}, [
@@ -965,8 +1033,15 @@ async function generate() {
     ]));
   }
   box.querySelector(".txt").append(list);
+  if (result.draft) {
+    noteText(box, `${result.gaps.length} unanswered question(s) print as a marker naming `
+                + `the question, for example [ Child — Date of birth ].`);
+  }
   noteText(box, result.folder);
   host.append(box);
+  if (result.draft && result.gaps.length) {
+    host.append(noteBox("warn", "Still to answer", result.gaps));
+  }
   if (result.warnings.length) host.append(noteBox("warn", "Note", result.warnings));
 
   const open = el("button", { className: "btn", textContent: "Open the folder" });
@@ -974,7 +1049,10 @@ async function generate() {
   host.append(el("div", { className: "actions" }, [open]));
 
   button.disabled = false;
-  status(`Wrote ${result.files.length} document(s).`);
+  host.scrollIntoView({ behavior: "smooth", block: "center" });
+  status(result.draft
+    ? `Wrote ${result.files.length} draft document(s).`
+    : `Wrote ${result.files.length} document(s).`);
 }
 
 /* ---------- importing a form the client already filled in ---------- */

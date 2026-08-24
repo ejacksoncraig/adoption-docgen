@@ -145,6 +145,28 @@ straightforward and needs nothing installed by hand beyond Python itself.
 Optional, via LibreOffice. If `soffice` is not on the machine, the checkbox is
 disabled with an explanation and .docx generation is unaffected.
 
+## Drafts, and the "fail loud" rule
+
+PROJECT_BRIEF.md says a missing variable must stop generation, because "a document
+that renders with a blank where a name should be is worse than a document that
+fails to render". That reasoning is sound and the rule still holds — but staff
+also need to take an unfinished petition away and work on it.
+
+Both are satisfied by never leaving a blank:
+
+- An unanswered question does not block. It prints as `[ Child — Date of birth ]`,
+  naming the question a person can go and answer.
+- Every file of an unfinished filing is named `DRAFT - …`, in a folder named
+  `DRAFT_…`, so it cannot be mistaken for something ready to file.
+- The marker names the *answerable* field, not the internal one: nobody types
+  `child1_birth_day`, they type the date of birth it is derived from.
+- An answer that is **wrong** — a date that is not a date, an option that is not on
+  the list — still refuses. Absent is forgiven; wrong is not, because wrong puts
+  nonsense in a filing rather than a visible gap.
+
+`tests/test_drafts.py` holds this line, including a check that every variant can be
+drafted from a completely empty intake with no template tag left behind.
+
 ## Confidentiality
 
 This repository must contain **blank templates only**. Generated documents,

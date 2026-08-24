@@ -423,6 +423,28 @@ class Schema:
             return fd.questionnaire
         return self.groups.get(fd.group, {}).get("questionnaire", True) is not False
 
+    def answerable_label(self, field_id: str) -> str:
+        """The question a person would have to answer to fill this in.
+
+        A derived field has no question of its own — nobody types
+        ``child1_birth_day``, they type the date of birth it is split from. When a
+        gap has to be described to staff, describing the field they can actually
+        act on is the difference between a useful note and an internal name.
+        """
+        fd = self.fields.get(field_id)
+        if fd is None:
+            return field_id
+        if not fd.derived:
+            return self.label_for(fd)
+
+        hit = match_derivation(field_id)
+        if hit is not None:
+            rule, match = hit
+            for source in rule.sources(match):
+                if source in self.fields:
+                    return self.answerable_label(source)
+        return self.label_for(fd)
+
     def label_for(self, fd: FieldDef) -> str:
         """'Child — Date of birth'. Half a dozen fields are called 'Date of birth';
         an error message has to say which one."""
@@ -488,15 +510,22 @@ class Schema:
         groups: Iterable[str],
         settings: dict[str, Any] | None = None,
         today: date | None = None,
+        allow_missing: bool = False,
     ) -> dict[str, Any]:
         """Turn entered values into the dict a template renders against.
 
         A field that does not apply (``tribe`` when ICWA is off) is left *out* of
-        the context rather than blanked. Rendering uses StrictUndefined, so a
+        the context rather than blanked. Rendering uses GuardedUndefined, so a
         template that reaches for it outside its guard fails loudly instead of
         printing nothing where a name belongs.
+
+        ``allow_missing`` is for drafting: an unanswered question stops being a
+        reason to refuse, and the gap is filled in later by the engine with a
+        visible marker naming the field. An answer that is *wrong* — a date that
+        is not a date, an option that is not on the list — still refuses, because
+        that is a mistake rather than a blank.
         """
-        problems = self.validate(values, groups)
+        problems = self.validate(values, groups, include_required=not allow_missing)
         if problems:
             raise IntakeError(problems)
 

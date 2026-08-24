@@ -167,11 +167,14 @@ def test_documents_are_generated_on_this_machine_not_in_the_browser(live, tmp_pa
     assert any("Petition and Decree" in f.name for f in written)
 
 
-def test_a_bad_request_still_comes_back_as_a_readable_problem(live):
-    status, res = live.post("generate", {"matter": "dhs", "variant": "dhs_1p_1c", "values": {}})
+def test_a_wrong_answer_comes_back_as_a_readable_problem(live):
+    status, res = live.post("generate", {
+        "matter": "dhs", "variant": "dhs_1p_1c",
+        "values": {**fixtures.BASE, "county": "Atlantis"},
+    })
     assert status == 200                      # the call worked; the intake did not
     assert res["ok"] is False
-    assert any("required" in problem for problem in res["problems"])
+    assert any("Atlantis" in problem for problem in res["problems"])
 
 
 # --------------------------------------------------------------------------

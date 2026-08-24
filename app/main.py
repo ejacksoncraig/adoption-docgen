@@ -106,30 +106,50 @@ class Api:
 
         missing = schema.missing_required(values, variant.field_groups)
         problems = schema.validate(values, variant.field_groups, include_required=False)
+
         documents: list[str] = []
-        if not problems and not missing:
-            context = schema.build_context(values, variant.field_groups, self.registry.settings)
+        if not problems:
+            context = schema.build_context(
+                values, variant.field_groups, self.registry.settings, allow_missing=True
+            )
             for doc in variant.all_documents():
                 try:
-                    documents.append(engine.resolve_output_name(doc, context))
+                    name = engine.resolve_output_name(doc, context)
                 except engine.RenderError:
-                    documents.append(doc.output_name)
+                    name = doc.output_name
+                documents.append((engine.DRAFT_PREFIX if missing else "") + name)
         else:
             documents = [doc.output_name for doc in variant.all_documents()]
 
-        return {"ok": True, "missing": missing, "problems": problems, "documents": documents}
+        return {
+            "ok": True,
+            "missing": missing,
+            "problems": problems,
+            "documents": documents,
+            # Unanswered questions no longer block; wrong answers still do.
+            "draft": bool(missing),
+            "blocked": bool(problems),
+        }
 
     # -- generation --------------------------------------------------------
 
     @guarded
     def generate(self, payload: dict) -> dict:
+        """Generate the filing, finished or not.
+
+        An unanswered question never blocks: what it produces instead is a draft,
+        with every gap printed as a visible marker and every file named DRAFT.
+        Staff can take an unfinished petition away to work on. What they cannot do
+        is end up with a document that looks complete and is not.
+        """
+        matter, variant_id = payload["matter"], payload["variant"]
         values = _clean(payload.get("values") or {})
+        variant = self.registry.variant(matter, variant_id)
+
+        missing = self.registry.schema.missing_required(values, variant.field_groups)
         result = engine.generate(
-            self.registry,
-            payload["matter"],
-            payload["variant"],
-            values,
-            pdf=bool(payload.get("pdf")),
+            self.registry, matter, variant_id, values,
+            pdf=bool(payload.get("pdf")), draft=bool(missing),
         )
         return {"ok": True, "result": result.as_dict()}
 
