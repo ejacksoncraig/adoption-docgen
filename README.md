@@ -75,6 +75,16 @@ program hands to its own page, so another site you have open cannot reach it.
 That makes it safe to run on your own machine; it does **not** make it safe to
 expose. See the confidentiality note below.
 
+## Trying it from a link
+
+`.devcontainer/` is set up so **GitHub Codespaces** runs the real application in
+a container off this repository and forwards its port — a browser tab, no rewrite,
+same engine. Use it with the SAMPLE answers only: a Codespace is GitHub's machine,
+not the office's. See `docs/CODESPACES.md`.
+
+GitHub Pages cannot host this. Pages serves static files and never runs code on a
+server, and this application's engine is Python from end to end.
+
 The same engine is reachable from the command line, which is how template work
 gets done:
 

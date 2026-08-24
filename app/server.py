@@ -152,11 +152,22 @@ def make_handler(api: BrowserApi, token: str):
             check stops a web page you have open elsewhere from POSTing here — the
             custom header already forces a cross-origin preflight, which fails, and
             this is the belt to that pair of braces.
+
+            Same origin is judged against the address the request actually came in
+            on, not a hardcoded "localhost". Reached through a forwarded port — a
+            Codespace, say — the page is served from that forwarded name, and
+            insisting on loopback would refuse the application's own page.
             """
             if not secrets.compare_digest(self.headers.get("X-Docgen-Token", ""), token):
                 return False
+
             origin = self.headers.get("Origin")
-            return origin is None or urlparse(origin).hostname in {HOST, "localhost"}
+            if origin is None:
+                return True
+            sender = urlparse(origin)
+            if sender.netloc.lower() == (self.headers.get("Host") or "").lower():
+                return True
+            return sender.hostname in {HOST, "localhost", "::1"}
 
         # -- routes ----------------------------------------------------------
 
@@ -202,7 +213,13 @@ def make_handler(api: BrowserApi, token: str):
     return Handler
 
 
-def serve(port: int | None = None, open_browser: bool = True) -> int:
+def in_codespace() -> bool:
+    import os
+
+    return os.environ.get("CODESPACES") == "true"
+
+
+def serve(port: int | None = None, open_browser: bool = True, host: str = HOST) -> int:
     try:
         registry = Registry.load()
     except ConfigError as exc:
@@ -219,15 +236,23 @@ def serve(port: int | None = None, open_browser: bool = True) -> int:
     api = BrowserApi(registry)
     token = secrets.token_urlsafe(24)
     port = port or free_port()
-    url = f"http://{HOST}:{port}/"
+    url = f"http://{host}:{port}/"
 
-    httpd = ThreadingHTTPServer((HOST, port), make_handler(api, token))
+    httpd = ThreadingHTTPServer((host, port), make_handler(api, token))
     print(f"Adoption Filing Generator — open {url}")
-    print("  Serving to this computer only. Press Ctrl+C to stop.")
+    if host == HOST:
+        print("  Serving to this computer only. Press Ctrl+C to stop.")
+    else:
+        print(f"  Listening on {host}. Anything that can reach this machine on port")
+        print("  {port} can reach the application. Press Ctrl+C to stop.".format(port=port))
+    if in_codespace():
+        print("  In a Codespace: open the Ports tab and click the globe beside this port.")
     if not registry.settings.get("attorney_short_name"):
         print("  note: config/settings.json has no attorney details yet.")
 
-    if open_browser:
+    # Opening a browser inside a container puts a window nobody can see on a
+    # machine nobody is sitting at.
+    if open_browser and not in_codespace():
         threading.Timer(0.4, webbrowser.open, args=(url,)).start()
 
     try:
@@ -246,8 +271,13 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, help=f"port to listen on (default: {DEFAULT_PORT}, or any free one)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser window")
+    parser.add_argument(
+        "--host", default=HOST,
+        help="interface to bind (default: %(default)s, this computer only). Use 0.0.0.0 only "
+             "inside a container whose ports are forwarded for you, never on a real network.",
+    )
     args = parser.parse_args(argv)
-    return serve(args.port, open_browser=not args.no_browser)
+    return serve(args.port, open_browser=not args.no_browser, host=args.host)
 
 
 if __name__ == "__main__":

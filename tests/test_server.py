@@ -248,3 +248,53 @@ def test_a_free_port_is_found_even_when_the_usual_one_is_taken():
     with ThreadingHTTPServer((server.HOST, 0), server.make_handler(None, "t")) as taken:
         busy = taken.server_address[1]
         assert server.free_port(busy) != busy
+
+
+# --------------------------------------------------------------------------
+# reached through a forwarded port
+# --------------------------------------------------------------------------
+
+
+def test_the_page_works_when_reached_through_a_forwarded_name(live):
+    """In a Codespace the page is served from a forwarded address, so its own
+    calls carry that Origin. Insisting on loopback would refuse the application's
+    own page and every button would fail."""
+    forwarded = "https://sturdy-space-8765.app.github.dev"
+    request = urllib.request.Request(
+        f"{live.base}/api/bootstrap",
+        data=b"{}",
+        headers={
+            "Content-Type": "application/json",
+            "X-Docgen-Token": live.token,
+            "Origin": forwarded,
+            "Host": forwarded.removeprefix("https://"),
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as reply:
+        assert reply.status == 200
+        assert json.loads(reply.read())["ok"]
+
+
+def test_a_forwarded_name_still_refuses_a_different_site(live):
+    """Same-origin is judged against the address the request arrived on, so a
+    third-party page is refused however the app is reached."""
+    request = urllib.request.Request(
+        f"{live.base}/api/bootstrap",
+        data=b"{}",
+        headers={
+            "Content-Type": "application/json",
+            "X-Docgen-Token": live.token,
+            "Origin": "https://evil.example",
+            "Host": "sturdy-space-8765.app.github.dev",
+        },
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(request, timeout=30)
+    assert exc.value.code == 403
+
+
+def test_it_still_binds_to_loopback_unless_told_otherwise():
+    import inspect
+
+    signature = inspect.signature(server.serve)
+    assert signature.parameters["host"].default == server.HOST

@@ -1,0 +1,36 @@
+{
+  "//": [
+    "Runs the real application in a GitHub Codespace so it can be opened from a link.",
+    "Nothing is rewritten for the web: this is app/server.py, the same engine the",
+    "desktop window uses, with GitHub forwarding the port.",
+    "",
+    "Test data only. A Codespace is a container on GitHub's machines, so anything",
+    "typed into it has left this office. Use the SAMPLE answers; real matters belong",
+    "on the office's own computer. See docs/CODESPACES.md."
+  ],
+
+  "name": "Adoption Filing Generator",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && python -m app.cli check",
+
+  "forwardPorts": [8765],
+  "portsAttributes": {
+    "8765": {
+      "label": "Adoption Filing Generator",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "files.eol": "\n"
+      }
+    }
+  }
+}

@@ -169,3 +169,68 @@ def test_paths_are_built_with_pathlib_not_string_joining():
             if not line.lstrip().startswith("#") and "_SOFFICE_CANDIDATES" not in line
         )
         assert '+ "\\\\"' not in code, name
+
+
+# --------------------------------------------------------------------------
+# running where there is no screen
+# --------------------------------------------------------------------------
+
+
+class _NoGui:
+    """Makes pywebview unimportable, the way a headless container has it."""
+
+    def find_module(self, name, path=None):
+        if name == "webview" or name.startswith("webview."):
+            return self
+
+    def load_module(self, name):
+        raise ImportError(f"no GUI toolkit available: {name}")
+
+
+def test_the_browser_front_end_runs_without_a_gui_toolkit(monkeypatch):
+    """A Codespace, a container or a server has no windowing library. The bridge
+    is shared with the desktop app, so importing one on the way past would stop
+    the browser front end dead — pywebview is imported only where a window is
+    actually opened."""
+    import subprocess
+    import sys
+    import textwrap
+
+    script = textwrap.dedent(
+        """
+        import sys
+        class Blocker:
+            def find_module(self, name, path=None):
+                if name == "webview" or name.startswith("webview."):
+                    return self
+            def load_module(self, name):
+                raise ImportError("no GUI toolkit available")
+        sys.meta_path.insert(0, Blocker())
+
+        from app import server
+        from app.registry import Registry
+        api = server.BrowserApi(Registry.load())
+        assert api.bootstrap()["ok"], "bootstrap failed"
+        assert api.mode == "browser"
+        print("ok")
+        """
+    )
+    finished = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True, text=True, cwd=str(Path(registry.__file__).parent.parent),
+    )
+    assert finished.returncode == 0, finished.stderr
+    assert "ok" in finished.stdout
+
+
+def test_the_command_line_runs_without_a_gui_toolkit():
+    """Template work happens over the CLI, often on a machine with no screen."""
+    import subprocess
+    import sys
+
+    finished = subprocess.run(
+        [sys.executable, "-m", "app.cli", "check"],
+        capture_output=True, text=True, cwd=str(Path(registry.__file__).parent.parent),
+    )
+    assert finished.returncode == 0, finished.stderr
+    assert "Configuration OK" in finished.stdout

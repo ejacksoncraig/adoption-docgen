@@ -14,11 +14,12 @@ from __future__ import annotations
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Callable
-
-import webview
+from typing import TYPE_CHECKING, Any, Callable
 
 from app import engine, intake, responses
+
+if TYPE_CHECKING:                       # for the annotation below only
+    import webview
 from app.registry import INTAKE_DIR, OUTPUT_DIR, UI_DIR, Registry
 from app.schema import ConfigError, IntakeError
 
@@ -61,6 +62,11 @@ class Api:
     #: Which front end this is talking to. The browser cannot open a native file
     #: dialog, so the page offers its own picker instead; see BrowserApi.
     mode = "desktop"
+
+    #: pywebview is imported where it is used, not at the top of this module.
+    #: app/server.py reuses this class to serve a browser, and that may be running
+    #: somewhere with no GUI toolkit at all — a container, a Codespace — where
+    #: importing a windowing library on the way past would stop it dead.
 
     def __init__(self, registry: Registry):
         self.registry = registry
@@ -140,6 +146,8 @@ class Api:
         matter, variant_id = payload["matter"], payload["variant"]
         target = payload.get("path")
         if not target and self._window is not None:
+            import webview
+
             suggested = intake.default_intake_name(matter, variant_id, values)
             chosen = self._window.create_file_dialog(
                 webview.SAVE_DIALOG, directory=str(INTAKE_DIR), save_filename=suggested
@@ -154,6 +162,8 @@ class Api:
     def choose_intake(self, _payload: dict | None = None) -> dict:
         if self._window is None:
             return _fail(["No window available to open a file dialog."])
+        import webview
+
         chosen = self._window.create_file_dialog(
             webview.OPEN_DIALOG,
             directory=str(INTAKE_DIR),
@@ -203,6 +213,8 @@ class Api:
         """
         if self._window is None:
             return _fail(["No window available to open a file dialog."])
+        import webview
+
         chosen = self._window.create_file_dialog(
             webview.OPEN_DIALOG,
             directory=str(INTAKE_DIR),
@@ -310,6 +322,8 @@ class Api:
         """None means the dialog was cancelled."""
         if self._window is None:
             return default
+        import webview
+
         chosen = self._window.create_file_dialog(
             webview.SAVE_DIALOG, directory=str(default.parent), save_filename=default.name
         )
@@ -352,6 +366,8 @@ def _escape(text: str) -> str:
 def show_config_error(exc: ConfigError) -> None:
     """A validation failure is a window with a list, not a traceback in a console
     the user will never see. This is the message that saves a bad filing."""
+    import webview
+
     for problem in exc.problems:
         print(f"  - {problem}", file=sys.stderr)
     items = "".join(f"<li>{_escape(p)}</li>" for p in exc.problems)
@@ -396,6 +412,8 @@ def main() -> int:
     except ConfigError as exc:
         show_config_error(exc)
         return 2
+
+    import webview
 
     for directory in (OUTPUT_DIR, INTAKE_DIR):
         directory.mkdir(parents=True, exist_ok=True)
