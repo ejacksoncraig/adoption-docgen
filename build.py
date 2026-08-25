@@ -1,6 +1,7 @@
 """Package the application for the machine you run this on.
 
     python build.py
+    python build.py --install "C:/AdoptionFilingGenerator"
 
 What ends up in dist/AdoptionFilingGenerator/:
 
@@ -44,6 +45,11 @@ BUNDLE = DIST / NAME
 
 #: macOS packages a windowed app as Name.app, with the binary buried inside it.
 MAC = sys.platform == "darwin"
+
+#: Windows cannot open a path this long or longer, and it is Word that refuses
+#: rather than this application — so where the app is installed decides whether
+#: documents it writes can be opened. See app/engine.py.
+PATH_LIMIT = 259
 
 #: PyInstaller's scratch space, deliberately outside the project.
 #: This repository lives in a OneDrive folder, and OneDrive holds handles on
@@ -204,7 +210,22 @@ def copy_alongside(kept: dict[str, str]) -> None:
         print(f"  left {name}/ alone ({existing} item(s))" if existing else f"  created empty {name}/")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="build.py", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--install", metavar="PATH", type=Path,
+                        help="install here instead of into dist/, keeping this copy's "
+                             "own settings.json, output/ and intake/")
+    destination = parser.parse_args(argv).install
+    if destination is not None:
+        # Put the build where it will actually be run from, rather than into dist/
+        # and out again. dist/ is a build artifact; an installation is not, and
+        # copying through one only invites a lock on a file nobody needs.
+        global BUNDLE
+        BUNDLE = destination.resolve()
+
     if not (ROOT / "config" / "matters.json").exists():
         print("Run this from the repository root.", file=sys.stderr)
         return 2
@@ -230,10 +251,16 @@ def main() -> int:
         return 1
     print("  self-check: all dependencies present")
 
-    print(f"\nBuilt {BUNDLE / (NAME + '.exe')}")
+    print("")
+    print(f"Built {built_executable()}")
     settings = json.loads((BUNDLE / "config" / "settings.json").read_text(encoding="utf-8"))
     if not settings.get("attorney_short_name"):
         print("Fill in config/settings.json with the office details before the first filing.")
+
+    room = PATH_LIMIT - len(str(BUNDLE / "output"))
+    print(f"  its output folder leaves {room} characters for folder and file names")
+    if room < 90:
+        print("  that is tight; somewhere like C:/AdoptionFilingGenerator leaves far more.")
     return 0
 
 
