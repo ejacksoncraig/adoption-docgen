@@ -257,7 +257,9 @@ def test_output_folder_and_file_names(registry, tmp_path, today):
     result = engine.generate(registry, PILOT_MATTER, PILOT_VARIANT, fixtures.BASE,
                              today=today, output_root=tmp_path)
     assert result.folder.name == "dhs_SAMPLE_CHILD_2026-08-21"
-    assert result.files[0].path.name == "Petition and Decree - SAMPLE CHILD.docx"
+    # Numbered so the folder sorts into filing order; the child named so a file
+    # emailed on its own still says who it is about.
+    assert result.files[0].path.name == "1 Petition and Decree - SAMPLE CHILD.docx"
 
 
 def test_generating_twice_never_overwrites(registry, tmp_path, today):

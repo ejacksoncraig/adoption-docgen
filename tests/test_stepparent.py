@@ -108,8 +108,8 @@ def test_a_step_parent_filing_generates_every_document(registry, tmp_path, today
     result = engine.generate(registry, MATTER, VARIANT, fixtures.STEPPARENT,
                              today=today, output_root=tmp_path)
     names = sorted(f.path.name for f in result.files)
-    assert names == ["Petition for Step Parent Adoption - SAMPLE CHILD.docx",
-                     "Step Parent Filing Packet.docx"]
+    assert names == ["1 Step-Parent Petition - SAMPLE CHILD.docx",
+                     "2 Filing Packet - SAMPLE CHILD.docx"]
 
 
 @pytest.mark.parametrize("token", ["XXX", "{{", "{%"])

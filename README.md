@@ -134,6 +134,24 @@ every dependency and fails the build if one did not make it in.
 PyInstaller cannot cross-compile: a Windows `.exe` must be built on Windows and a
 macOS `.app` on a Mac.
 
+### Install it somewhere short
+
+`dist/` is where a build lands, not where the application should live. Copy the
+whole `AdoptionFilingGenerator` folder somewhere near the root of the drive:
+
+```
+C:\AdoptionFilingGenerator```
+
+Windows cannot open a file whose full path reaches 260 characters, and it is
+*Word* that refuses, not this application — so a document written past the limit
+looks generated and cannot be opened. Running from `dist/` inside a synced
+OneDrive folder spends 170 characters before the file name even starts, which is
+enough to trip it.
+
+The app shortens names to fit rather than leaving that to be discovered, and says
+so when it does. But a short install path means it never has to, and the files
+keep the names the configuration gives them.
+
 ## Windows and macOS
 
 The application is cross-platform and the platform-dependent decisions are

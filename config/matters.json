@@ -16,7 +16,7 @@
           "documents": [
             {
               "template": "dhs/dhs_petition_decree_1p_1c.docx",
-              "output_name": "Petition and Decree - {{ child1_name }}.docx"
+              "output_name": "1 Petition and Decree - {{ child1_name }}.docx"
             }
           ]
         },
@@ -29,7 +29,7 @@
           "field_groups": ["case", "petitioner1", "petitioner2", "child1", "bio_parents", "dhs", "icwa"],
           "documents": [
             { "template": "dhs/dhs_petition_decree_2p_1c.docx",
-              "output_name": "Petition and Decree - {{ child1_name }}.docx" }
+              "output_name": "1 Petition and Decree - {{ child1_name }}.docx" }
           ]
         },
         {
@@ -41,7 +41,7 @@
           "field_groups": ["case", "petitioner1", "child1", "child2", "bio_parents", "dhs", "icwa"],
           "documents": [
             { "template": "dhs/dhs_petition_1p_2c.docx",
-              "output_name": "Petition - {{ child1_name }}.docx" }
+              "output_name": "1 Petition - {{ child1_name }}.docx" }
           ]
         },
         {
@@ -53,17 +53,17 @@
           "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "bio_parents", "dhs", "icwa"],
           "documents": [
             { "template": "dhs/dhs_petition_2p_2c.docx",
-              "output_name": "Petition - {{ child1_name }}.docx" }
+              "output_name": "1 Petition - {{ child1_name }}.docx" }
           ]
         }
       ],
       "common_documents": [
         { "template": "dhs/dhs_consent_affidavit_order.docx",
-          "output_name": "Consent, Affidavit of Expenditures, Order for Hearing.docx",
+          "output_name": "2 Consent, Affidavit, Order - {{ child1_name }}.docx",
           "status": "ready",
           "field_groups": ["case", "petitioner1", "petitioner2", "child1"] },
         { "template": "dhs/dhs_packet.docx",
-          "output_name": "DHS Filing Packet.docx",
+          "output_name": "3 Filing Packet - {{ child1_name }}.docx",
           "status": "ready",
           "field_groups": ["case", "petitioner1", "child1"] }
       ]
@@ -82,7 +82,7 @@
           "field_groups": ["case", "petitioner1", "petitioner2", "child1", "stepparent", "icwa"],
           "documents": [
             { "template": "stepparent/step_petition_1c.docx",
-              "output_name": "Petition for Step Parent Adoption - {{ child1_name }}.docx" }
+              "output_name": "1 Step-Parent Petition - {{ child1_name }}.docx" }
           ]
         },
         {
@@ -94,13 +94,13 @@
           "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "stepparent", "icwa"],
           "documents": [
             { "template": "stepparent/step_petition_2c.docx",
-              "output_name": "Petition for Step Parent Adoption - {{ child1_name }}.docx" }
+              "output_name": "1 Step-Parent Petition - {{ child1_name }}.docx" }
           ]
         }
       ],
       "common_documents": [
         { "template": "stepparent/step_packet.docx",
-          "output_name": "Step Parent Filing Packet.docx",
+          "output_name": "2 Filing Packet - {{ child1_name }}.docx",
           "status": "ready",
           "field_groups": ["case", "petitioner1", "child1", "stepparent"] }
       ]

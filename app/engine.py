@@ -45,6 +45,17 @@ DRAFT_MARK = "[ {label} ]"
 #: for something ready to file, in the folder or in an email attachment.
 DRAFT_PREFIX = "DRAFT - "
 
+#: Windows refuses to open a path of 260 characters or more, counting the drive
+#: and every folder on the way. Word reports it as "Cannot open the file because
+#: the file path is more than 259 characters" — and it is the *reader* that
+#: fails, so a document written past the limit looks generated and is unopenable.
+#: Nothing about that is obvious from the output folder, which is why the app
+#: shortens names to fit rather than leaving it to be discovered later.
+PATH_LIMIT = 259
+
+#: Room left for the " (2)" a second generation into the same folder adds.
+_COPY_ROOM = 5
+
 _ILLEGAL_FILENAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
@@ -245,6 +256,37 @@ def deduplicate_package(path: Path) -> None:
     repaired.replace(path)
 
 
+def fit_within_path_limit(folder: Path, name: str) -> tuple[str, str | None]:
+    """Shorten a file name until folder/name is a path Word can actually open.
+
+    Returns the name to use and, if it had to be cut, a note saying so — the
+    shortening must never be silent, because the office needs to know why a
+    document is not called what the configuration says it is called.
+    """
+    if sys.platform != "win32":
+        return name, None                       # only Windows has this limit
+
+    room = PATH_LIMIT - len(str(folder)) - 1 - _COPY_ROOM
+    if len(name) <= room:
+        return name, None
+
+    stem, suffix = name[: -len(Path(name).suffix)], Path(name).suffix
+    keep = room - len(suffix)
+    if keep < 12:
+        raise RenderError([
+            f"The folder these documents would go in is too deep for Windows to open "
+            f"files from: {folder}. Its path is {len(str(folder))} characters and Word "
+            f"cannot open anything past {PATH_LIMIT}. Move the application somewhere "
+            f"shorter, such as C:/AdoptionFilingGenerator, and generate again."
+        ])
+
+    shortened = stem[:keep].rstrip(" -,") + suffix
+    return shortened, (
+        f"{name} was shortened to {shortened} — the full name would have made a path "
+        f"longer than the {PATH_LIMIT} characters Windows can open."
+    )
+
+
 def safe_filename(name: str) -> str:
     cleaned = _ILLEGAL_FILENAME.sub("", name).strip().strip(".")
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -333,6 +375,9 @@ def generate(
         name = resolve_output_name(doc, context)
         if gaps:
             name = DRAFT_PREFIX + name
+        name, shortened = fit_within_path_limit(folder, name)
+        if shortened:
+            result.warnings.append(shortened)
         out_path = _unique(folder / name)
         render_document(path, context, out_path)
         result.files.append(GeneratedFile(template=doc.template, path=out_path))

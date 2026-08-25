@@ -48,7 +48,7 @@ def test_review_of_an_empty_form_lists_what_is_missing(api):
 def test_review_of_a_complete_form_shows_the_resolved_file_names(api):
     res = api.review({"matter": PILOT_MATTER, "variant": PILOT_VARIANT, "values": fixtures.BASE})
     assert res["ok"] and res["missing"] == [] and res["problems"] == []
-    assert "Petition and Decree - SAMPLE CHILD.docx" in res["documents"]
+    assert "1 Petition and Decree - SAMPLE CHILD.docx" in res["documents"]
     # the matter's common documents are listed too, so staff see the whole filing
     assert len(res["documents"]) == 3
 
@@ -66,7 +66,7 @@ def test_generate_writes_documents(api, tmp_path, monkeypatch):
     monkeypatch.setattr("app.engine.OUTPUT_DIR", tmp_path)
     res = api.generate({"matter": PILOT_MATTER, "variant": PILOT_VARIANT, "values": fixtures.BASE})
     assert res["ok"]
-    assert res["result"]["files"][0]["name"] == "Petition and Decree - SAMPLE CHILD.docx"
+    assert res["result"]["files"][0]["name"] == "1 Petition and Decree - SAMPLE CHILD.docx"
     assert (tmp_path / res["result"]["folder"].split("\\")[-1]).exists()
 
 
