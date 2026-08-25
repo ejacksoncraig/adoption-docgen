@@ -140,7 +140,8 @@ macOS `.app` on a Mac.
 whole `AdoptionFilingGenerator` folder somewhere near the root of the drive:
 
 ```
-C:\AdoptionFilingGenerator```
+C:\AdoptionFilingGenerator\
+```
 
 Windows cannot open a file whose full path reaches 260 characters, and it is
 *Word* that refuses, not this application — so a document written past the limit
