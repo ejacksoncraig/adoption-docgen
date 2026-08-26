@@ -83,7 +83,7 @@ COLLECT = ("webview", "pypdf")
 #: live inside the archive and look missing from the outside.
 
 
-def run_pyinstaller() -> None:
+def run_pyinstaller(universal: bool = False) -> None:
     separator = ";" if sys.platform == "win32" else ":"
     command = [
         sys.executable, "-m", "PyInstaller",
@@ -96,8 +96,18 @@ def run_pyinstaller() -> None:
         "--distpath", str(STAGING),
         "--workpath", str(WORK),
         "--specpath", str(WORK),
-        str(ROOT / "app" / "main.py"),
     ]
+    if universal:
+        # A Mac build is otherwise thin: it carries only the architecture of the
+        # machine it was built on, and an Apple Silicon build will not launch at
+        # all on an Intel Mac. universal2 carries both, which matters when the
+        # people receiving it do not all have the same vintage of Mac.
+        #
+        # Every compiled dependency must itself be universal2 or PyInstaller
+        # fails here; see arch_report(), which checks the result rather than
+        # trusting the flag.
+        command += ["--target-arch", "universal2"]
+    command.append(str(ROOT / "app" / "main.py"))
     WORK.mkdir(parents=True, exist_ok=True)
     print(" ".join(command), "\n")
     subprocess.run(command, check=True)
@@ -114,11 +124,19 @@ def _clear_readonly(func, path, _exc_info) -> None:
     func(path)
 
 
+#: rmtree's error callback was renamed in 3.12: onerror before, onexc after, and
+#: passing the wrong one is a TypeError rather than something ignored. Both hand
+#: the callback (func, path, third), so _clear_readonly serves as either. This
+#: only shows on a rebuild over an existing installation — a first build removes
+#: nothing — which is why it survives a fresh build on a newer Python.
+_RMTREE_CALLBACK = "onexc" if sys.version_info >= (3, 12) else "onerror"
+
+
 def _remove(path: Path) -> None:
     """Delete a program file or folder, explaining the usual cause of failure."""
     try:
         if path.is_dir():
-            shutil.rmtree(path, onexc=_clear_readonly)
+            shutil.rmtree(path, **{_RMTREE_CALLBACK: _clear_readonly})
         elif path.exists():
             os.chmod(path, stat.S_IWRITE)
             path.unlink()
@@ -130,16 +148,75 @@ def _remove(path: Path) -> None:
         ) from exc
 
 
+def _program_files() -> list[Path]:
+    """What PyInstaller produced that belongs in the installation.
+
+    A windowed macOS build writes two things side by side: the collected program
+    directory, and the Name.app bundle that holds a second copy of it. The bundle
+    is the whole application — it is what a person double-clicks — so on a Mac it
+    is the only thing installed, and the loose directory beside it is left behind.
+    Copying both would install the program twice.
+    """
+    if MAC:
+        app = STAGING / f"{NAME}.app"
+        if app.exists():
+            return [app]
+        # An older PyInstaller, or a build that somehow produced no bundle: fall
+        # back to the loose program so the build still yields something runnable.
+        return list((STAGING / NAME).iterdir())
+    return list((STAGING / NAME).iterdir())
+
+
+#: What Apple's architecture names mean to someone deciding whether an app will
+#: run on their machine.
+_ARCH_NAMES = {"arm64": "Apple Silicon", "x86_64": "Intel"}
+
+
+def _archs(path: Path) -> set[str]:
+    """The architectures in one Mach-O file, or an empty set if it isn't one."""
+    result = subprocess.run(["lipo", "-archs", str(path)],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        return set()
+    return set(result.stdout.split())
+
+
+def arch_report() -> str | None:
+    """Which Macs the built application will actually launch on.
+
+    --target-arch is a request, not a result: if one compiled dependency ships
+    thin, PyInstaller narrows the build to match and the flag is still on the
+    command line. So read it back off the program and every compiled library
+    inside it, and report the *intersection* — an app is only as universal as
+    its narrowest piece, and a missing architecture surfaces as a launch
+    failure on the recipient's machine rather than here.
+    """
+    if not MAC:
+        return None
+    program = built_executable()
+    if not program.exists():
+        return None
+
+    common = _archs(program)
+    for library in (*program.parent.parent.rglob("*.so"),
+                    *program.parent.parent.rglob("*.dylib")):
+        found = _archs(library)
+        if found:
+            common &= found
+    if not common:
+        return "could not determine which architectures this build supports"
+    return ", ".join(sorted(_ARCH_NAMES.get(a, a) for a in common))
+
+
 def install_program() -> None:
     """Copy the freshly built program over the installation, and nothing else."""
-    built = STAGING / NAME
     BUNDLE.mkdir(parents=True, exist_ok=True)
 
-    for item in built.iterdir():
+    for item in _program_files():
         target = BUNDLE / item.name
         _remove(target)
         if item.is_dir():
-            shutil.copytree(item, target)
+            shutil.copytree(item, target, symlinks=True)
         else:
             shutil.copy2(item, target)
         print(f"  installed {item.name}")
@@ -218,7 +295,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--install", metavar="PATH", type=Path,
                         help="install here instead of into dist/, keeping this copy's "
                              "own settings.json, output/ and intake/")
-    destination = parser.parse_args(argv).install
+    parser.add_argument("--universal", action="store_true",
+                        help="macOS only: build one application that runs on both "
+                             "Apple Silicon and Intel Macs. Slower and larger; use it "
+                             "when you do not know which Macs will receive it.")
+    arguments = parser.parse_args(argv)
+    destination = arguments.install
+    if arguments.universal and not MAC:
+        print("--universal is a macOS option; a Windows build has one architecture.",
+              file=sys.stderr)
+        return 2
     if destination is not None:
         # Put the build where it will actually be run from, rather than into dist/
         # and out again. dist/ is a build artifact; an installation is not, and
@@ -232,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
 
     kept = read_preserved()
 
-    run_pyinstaller()
+    run_pyinstaller(universal=arguments.universal)
     if not (STAGING / NAME).exists():
         print(f"PyInstaller did not produce {STAGING / NAME}", file=sys.stderr)
         return 1
@@ -253,6 +339,12 @@ def main(argv: list[str] | None = None) -> int:
 
     print("")
     print(f"Built {built_executable()}")
+    runs_on = arch_report()
+    if runs_on:
+        print(f"  runs on: {runs_on}")
+        if MAC and "Intel" not in runs_on:
+            print("  an Intel Mac cannot open this build; rebuild with --universal "
+                  "if one might receive it.")
     settings = json.loads((BUNDLE / "config" / "settings.json").read_text(encoding="utf-8"))
     if not settings.get("attorney_short_name"):
         print("Fill in config/settings.json with the office details before the first filing.")
