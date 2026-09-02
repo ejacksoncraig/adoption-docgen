@@ -16,6 +16,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field as dc_field
 from pathlib import Path
 from typing import Any, Iterable
@@ -121,18 +122,40 @@ def user_data_dir() -> Path:
     return (Path(base) if base else Path.home() / ".local" / "share") / APP_NAME
 
 
+#: Places the system empties without asking. An application running from one of
+#: these has not been installed — it is being *previewed*: opened straight out
+#: of a .zip, or relocated by Gatekeeper. Both put a real-looking config/ and
+#: templates/ next to the program, and both take the folder away again, which
+#: surfaces as "No such file or directory: /private/var/folders/..." at the
+#: moment somebody generates a filing rather than at startup.
+_TEMPORARY_MARKERS = ("/AppTranslocation/", "/private/var/folders/", "/var/folders/")
+
+
+def is_temporary(path: Path) -> bool:
+    """Whether a path is somewhere the system will delete without warning."""
+    text = str(path.resolve() if path.exists() else path)
+    if any(marker in text for marker in _TEMPORARY_MARKERS):
+        return True
+    return text.startswith(str(Path(tempfile.gettempdir()).resolve()))
+
+
 def data_root() -> Path:
     """Where config/, templates/, output/ and intake/ are actually read.
 
-    Beside the application when they are there — the arrangement the office is
-    told about, and the one a rebuild preserves. Otherwise a per-user folder,
-    seeded from the copies inside the application, so that a bare .app still
-    runs rather than reporting its own templates missing.
+    Beside the application when they are really there — the arrangement the
+    office is told about, and the one a rebuild preserves. Otherwise a per-user
+    folder, seeded from the copies inside the application, so that a bare .app
+    still runs rather than reporting its own templates missing.
+
+    "Really there" excludes a temporary copy. Files beside a program running out
+    of a .zip or a Gatekeeper relocation look exactly like an installation and
+    are gone by the time anything is written to them, so they are refused in
+    favour of somewhere that will still exist.
     """
     if not getattr(sys, "frozen", False):
         return project_root()
     beside = project_root()
-    if (beside / "config" / "matters.json").is_file():
+    if (beside / "config" / "matters.json").is_file() and not is_temporary(beside):
         return beside
     return user_data_dir()
 
@@ -168,6 +191,14 @@ def prepare_data() -> list[str]:
         notes.append(
             f"The templates and settings this application came with have been put in "
             f"{ROOT}, because there were none beside the application itself."
+        )
+    if is_temporary(project_root()):
+        notes.append(
+            "This copy is running from a temporary folder, which is what happens when "
+            "an application is opened straight out of a .zip, or before macOS has been "
+            "told to trust it. Anything kept beside it there will be deleted without "
+            "warning, so it is being ignored. Move the application somewhere real — "
+            "Applications, or Documents — and open it from there."
         )
     if translocated():
         notes.append(

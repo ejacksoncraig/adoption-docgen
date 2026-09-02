@@ -76,14 +76,56 @@ def test_running_from_source_is_not_translocated():
 
 
 def test_the_copies_beside_the_application_are_preferred(monkeypatch, tmp_path):
-    """The arrangement the office is told about, and the one a rebuild keeps."""
+    """The arrangement the office is told about, and the one a rebuild keeps.
+
+    is_temporary is stubbed off because pytest's own tmp_path lives under
+    /private/var/folders — which is exactly the place the real check rejects, and
+    a neat demonstration that it works.
+    """
     installed = tmp_path / "AdoptionFilingGenerator"
     (installed / "config").mkdir(parents=True)
     (installed / "config" / "matters.json").write_text("{}", encoding="utf-8")
 
+    monkeypatch.setattr(registry, "is_temporary", lambda _path: False)
     monkeypatch.setattr(registry.sys, "frozen", True, raising=False)
     monkeypatch.setattr(registry.sys, "executable", str(installed / "AdoptionFilingGenerator"))
     assert registry.data_root() == installed
+
+
+def test_a_temporary_copy_is_refused_even_though_config_is_there(monkeypatch, tmp_path):
+    """The one that reached somebody. Opening the .app straight out of a .zip,
+    or before macOS trusts it, runs it from /private/var/folders with a perfectly
+    real-looking config/ and templates/ beside it — which the system then deletes.
+    It survived startup and failed at "generate" with a path that no longer
+    existed, so the check is on where the files are, not whether they are there.
+    """
+    temporary = tmp_path / "private" / "var" / "folders" / "sr" / "T" / "AdoptionFilingGenerator"
+    (temporary / "config").mkdir(parents=True)
+    (temporary / "config" / "matters.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(registry.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(registry.sys, "executable", str(temporary / "App.app" / "Contents" / "MacOS" / "App"))
+    assert registry.data_root() == registry.user_data_dir()
+
+
+def test_a_translocated_copy_is_refused_the_same_way(monkeypatch, tmp_path):
+    translocated_dir = tmp_path / "AppTranslocation" / "UUID" / "d"
+    (translocated_dir / "config").mkdir(parents=True)
+    (translocated_dir / "config" / "matters.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(registry.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(registry.sys, "executable",
+                        str(translocated_dir / "App.app" / "Contents" / "MacOS" / "App"))
+    assert registry.data_root() == registry.user_data_dir()
+
+
+def test_an_ordinary_folder_is_not_mistaken_for_a_temporary_one():
+    """The check must not reject a real installation, which would send an office
+    that has edited a template back to the shipped one without saying so."""
+    assert not registry.is_temporary(Path.home() / "Documents" / "AdoptionFilingGenerator")
+    assert not registry.is_temporary(Path("/Applications/AdoptionFilingGenerator"))
+    assert not registry.is_temporary(Path("/Users/someone/My var folders/app"))
+    assert not registry.is_temporary(Path(r"C:\AdoptionFilingGenerator"))
 
 
 def test_with_nothing_beside_it_a_per_user_folder_is_used(monkeypatch, tmp_path):

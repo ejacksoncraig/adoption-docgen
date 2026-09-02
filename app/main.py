@@ -489,7 +489,9 @@ def where() -> int:
     print(f"application  {sys.executable}")
     print(f"frozen       {bool(getattr(sys, 'frozen', False))}")
     print(f"relocated    {registry.translocated()}   (macOS App Translocation)")
-    print(f"beside it    {registry.project_root()}")
+    beside = registry.project_root()
+    print(f"beside it    {beside}"
+          f"{'   TEMPORARY - ignored' if registry.is_temporary(beside) else ''}")
     print(f"defaults in  {registry.bundled_defaults()}")
     print(f"per-user     {registry.user_data_dir()}")
     print(f"USING        {registry.ROOT}")
