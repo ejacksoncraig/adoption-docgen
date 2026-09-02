@@ -40,37 +40,49 @@ Your Documents folder or Applications is fine.
 > A plain folder in Documents does not sync. Check that Desktop & Documents
 > syncing is off, or keep it somewhere else entirely.
 
-### 3. The first launch will be refused — this is expected
+### 3. The first launch will be refused — this is expected, and you must clear it
 
 The program is not signed with an Apple developer certificate, so the first time
-you open it macOS says:
+you open it macOS says something like:
 
-> "AdoptionFilingGenerator" cannot be opened because the developer cannot be
-> verified.
+> Apple could not verify "AdoptionFilingGenerator" is free of malware that may
+> harm your Mac or compromise your privacy.
 
 Nothing is wrong. Apple charges $99/year to make this message go away, and this
-is a program written for one office rather than sold. To allow it, once:
+is a program written for one office rather than sold. macOS shows this about
+*any* program it has not been paid to vouch for.
 
-1. Double-click the app. Click **Done** or **Cancel** on the warning.
+**Do this once, before anything else:**
+
+1. Double-click the app. Click **Done** on the warning.
 2. Open **System Settings** → **Privacy & Security**.
-3. Scroll down to the **Security** section. There is a line saying
-   *"AdoptionFilingGenerator" was blocked* with an **Open Anyway** button.
+3. Scroll down to the **Security** section. There is a line naming
+   AdoptionFilingGenerator, with an **Open Anyway** button.
 4. Click **Open Anyway**, and confirm with your password or Touch ID.
-5. It opens. **macOS remembers** — from now on it is an ordinary double-click.
+5. Open the application again. **macOS remembers** — from now on it is an
+   ordinary double-click.
 
-The exact wording shifts a little between macOS versions. On macOS 14 and
-earlier you could instead right-click the app and choose **Open**; on macOS 15
-(Sequoia) and later Apple removed that shortcut, and the Privacy & Security
-route above is the one that works.
+This step is not optional and not cosmetic. Until you do it, macOS runs the
+program from a temporary read-only copy of its own and leaves `config` and
+`templates` behind, so it starts up and then reports that it cannot find its own
+files. If you see a window saying *"macOS is running this app from a temporary
+copy"*, that is what happened — do the four steps above and it goes away.
 
-If the button is not there, the Terminal one-liner below does the same thing.
-Paste it, press Return, then open the app normally:
+**Moving the folder does not fix it.** Dragging it to Documents or Applications
+changes nothing on its own; the approval in step 3 is what clears it. This was
+tested rather than assumed.
+
+If there is no **Open Anyway** button, the same thing can be done in Terminal.
+Type this, with a trailing space, then drag the `AdoptionFilingGenerator` folder
+onto the Terminal window and press Return:
 
 ```bash
-xattr -d com.apple.quarantine /path/to/AdoptionFilingGenerator.app
+xattr -dr com.apple.quarantine
 ```
 
-(Drag the app onto the Terminal window instead of typing the path.)
+On macOS 14 and earlier you could instead right-click the app and choose
+**Open**. Apple removed that shortcut in macOS 15 (Sequoia), so on any current
+Mac the Privacy & Security route is the one that works.
 
 ### Which Macs this runs on
 
@@ -110,28 +122,25 @@ Windows SmartScreen says *"Windows protected your PC"*. Click **More info** →
 
 ## Before the first real filing
 
-Open `config/settings.json` in any text editor and fill in the office details:
+Open the program and click **Office details** in the left-hand sidebar. Fill in
+the attorney name and whatever else applies, then **Save details**. That is the
+whole step — there is no file to edit.
 
-```json
-{
-  "attorney_short_name": "",
-  "attorney_full_name": "",
-  "attorney_oba": "",
-  "attorney_firm": "",
-  "attorney_address": "",
-  "attorney_city_state_zip": "",
-  "attorney_phone": "",
-  "attorney_email": ""
-}
-```
+Until it is done, the opening screen carries a warning and the sidebar entry is
+marked, because a document that needs the attorney name refuses to generate while
+it is blank rather than printing a decree with no attorney of record.
 
-These are the same on every filing, which is why they are set once here instead
-of being retyped on every intake form. A document that needs them refuses to
-generate while they are blank, rather than printing a decree with no attorney of
-record.
+These details are the same on every filing, which is why they are set once here
+instead of being retyped on every intake form. Saving takes effect immediately —
+there is no need to restart.
 
-Updating the program later does **not** overwrite this file, or anything in
-`output/` or `intake/`.
+Some boxes are marked **not printed**. Those are saved for later but no template
+currently prints them: the signature blocks are written into the .docx templates
+themselves. Filling them in does no harm.
+
+Behind the scenes this is still `config/settings.json`, and it can be edited by
+hand if you prefer. Updating the program later does **not** overwrite it, or
+anything in `output/` or `intake/`.
 
 ---
 

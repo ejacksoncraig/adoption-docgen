@@ -49,6 +49,35 @@ def project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+#: The marker macOS puts in the path of a translocated application. Apple's own
+#: name for the directory; there is no API for this that works from Python.
+_TRANSLOCATION_MARKER = "/AppTranslocation/"
+
+
+def translocated() -> bool:
+    """Whether macOS is running the application from a relocated copy.
+
+    A downloaded app carries a quarantine flag, and macOS launches a quarantined
+    app from a randomised read-only mount rather than from where it actually
+    sits — "App Translocation", or Gatekeeper path randomisation. Only the
+    ``.app`` is carried across. Everything beside it is left behind.
+
+    That is fatal here specifically *because* config/ and templates/ live beside
+    the bundle by design, so a translocated launch sees neither, and cannot
+    write output/ either — the mount is read-only. The failure arrives as a
+    configuration error listing missing files, which sends whoever hit it
+    looking for a problem in config/ that does not exist.
+
+    The condition is cleared by approving the app once in System Settings →
+    Privacy & Security, which is what a person should be told to do. Moving the
+    folder does not clear it; that was tested.
+    """
+    for path in (sys.executable, getattr(sys, "_MEIPASS", "")):
+        if path and _TRANSLOCATION_MARKER in str(path):
+            return True
+    return False
+
+
 ROOT = project_root()
 CONFIG_DIR = ROOT / "config"
 TEMPLATES_DIR = ROOT / "templates"
@@ -300,6 +329,96 @@ def _read_settings(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     return {k: v for k, v in _read_json(path).items() if not k.startswith("_")}
+
+
+# --------------------------------------------------------------------------
+# the office's own details, edited in the application rather than by hand
+# --------------------------------------------------------------------------
+
+#: How to *ask* for each office setting: the key, the question, and a hint.
+#:
+#: This lives here rather than in settings.json because it describes the asking,
+#: not the value, and settings.json stays a plain key/value file that a person
+#: can still open in a text editor. It is not a closed list: any key found in
+#: settings.json and not named here is offered for editing too, appended after
+#: these, so the file remains the source of truth for what exists.
+OFFICE_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("attorney_short_name", "Attorney name",
+     "As it should read in the body of a filing — for example Terri Craig."),
+    ("attorney_full_name", "Full legal name",
+     "For the signature block, if it differs from the name above."),
+    ("attorney_oba", "OBA number", "Oklahoma Bar Association number."),
+    ("attorney_firm", "Firm", "The firm or office name."),
+    ("attorney_address", "Street address", ""),
+    ("attorney_city_state_zip", "City, state and ZIP", ""),
+    ("attorney_phone", "Phone", ""),
+    ("attorney_email", "Email", ""),
+)
+
+
+def settings_path(config_dir: Path | None = None) -> Path:
+    return (config_dir or CONFIG_DIR) / "settings.json"
+
+
+def office_fields(schema: Schema, settings: dict[str, Any]) -> list[dict[str, Any]]:
+    """The office settings to offer for editing, with their current values.
+
+    ``used`` says whether any template can actually print this value: a setting
+    is only reachable if fields.json declares a derived field of the same name.
+    A key nobody reads is still shown — it is in the file, and deleting it is
+    not this screen's decision — but it is not presented as though filling it in
+    will change a document.
+    """
+    known = {key for key, _, _ in OFFICE_FIELDS}
+    extra = [k for k in settings if not k.startswith("_") and k not in known]
+
+    rows = []
+    for key, label, hint in OFFICE_FIELDS + tuple((k, k, "") for k in sorted(extra)):
+        declared = schema.fields.get(key)
+        rows.append({
+            "id": key,
+            "label": label,
+            "hint": hint,
+            "value": str(settings.get(key, "") or ""),
+            "used": bool(declared is not None and declared.derived),
+        })
+    return rows
+
+
+def write_settings(values: dict[str, str], config_dir: Path | None = None) -> Path:
+    """Save the office details, keeping everything else in the file intact.
+
+    The file is a person's to edit as much as it is the program's: the leading
+    ``_comment`` explains what it is for, and a hand-added key is somebody's
+    intention. So this reads what is there, replaces only the keys it was given,
+    and writes the whole thing back.
+
+    Written to a temporary file and moved into place, because the alternative to
+    an atomic write here is a settings.json truncated to nothing by a crash
+    mid-save — which stops the application starting.
+    """
+    path = settings_path(config_dir)
+    existing: dict[str, Any] = {}
+    if path.exists():
+        existing = _read_json(path)
+
+    for key, value in values.items():
+        if key.startswith("_"):
+            continue                     # never let the UI rewrite the comment
+        existing[key] = str(value).strip()
+
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        temporary.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    except OSError as exc:
+        temporary.unlink(missing_ok=True)
+        raise ConfigError([
+            f"Could not save {path.name}: {exc}",
+            "If the application is inside a read-only folder — still in the disk "
+            "image it arrived in, say — move it out and try again.",
+        ]) from exc
+    return path
 
 
 def _document(raw: dict, where: str, problems: list[str]) -> Document | None:

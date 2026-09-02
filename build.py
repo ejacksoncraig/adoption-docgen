@@ -347,7 +347,8 @@ def main(argv: list[str] | None = None) -> int:
                   "if one might receive it.")
     settings = json.loads((BUNDLE / "config" / "settings.json").read_text(encoding="utf-8"))
     if not settings.get("attorney_short_name"):
-        print("Fill in config/settings.json with the office details before the first filing.")
+        print("No office details yet: open the app and fill in Office details "
+              "before the first filing.")
 
     room = PATH_LIMIT - len(str(BUNDLE / "output"))
     print(f"  its output folder leaves {room} characters for folder and file names")

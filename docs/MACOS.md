@@ -127,9 +127,10 @@ An app that is not signed and notarised by an Apple Developer account gets:
 > "AdoptionFilingGenerator" cannot be opened because the developer cannot be
 > verified.
 
-This is expected, and it is not a sign anything is wrong. `spctl -a -vv` on a
-downloaded copy reports `rejected`, which is Gatekeeper working as designed on an
-ad-hoc-signed build.
+On macOS 26 the wording is *"Apple could not verify ... is free of malware that
+may harm your Mac or compromise your privacy."* This is expected, and it is not a
+sign anything is wrong. `spctl -a -vv` on a downloaded copy reports `rejected`,
+which is Gatekeeper working as designed on an ad-hoc-signed build.
 
 To allow it, once: **System Settings** → **Privacy & Security** → scroll to
 **Security**, where a line names the blocked app with an **Open Anyway** button.
@@ -138,6 +139,46 @@ macOS then remembers.
 Older instructions say to right-click the app and choose **Open** instead. That
 worked up to macOS 14; **Apple removed the shortcut in macOS 15 (Sequoia)**, so
 on any current Mac the Privacy & Security route is the one that works.
+
+### App Translocation, which this design is unusually exposed to
+
+Skipping the approval above does not merely leave the app blocked. macOS runs a
+still-quarantined app through **App Translocation**: the bundle is mounted alone
+at a randomised read-only path and launched from there.
+
+That is ordinarily harmless. It is not harmless here, because `config/` and
+`templates/` live *beside* the bundle by design — under translocation they are
+not beside anything:
+
+```
+$ mount | grep translocation
+/Users/x/Documents/AdoptionFilingGenerator/AdoptionFilingGenerator.app on
+  /private/var/folders/.../AppTranslocation/2D77A8BD-.../ (nullfs, read-only, nobrowse)
+
+$ ls /private/var/folders/.../AppTranslocation/2D77A8BD-.../d
+AdoptionFilingGenerator.app          # and nothing else
+```
+
+The mount is read-only, so `output/` and `intake/` cannot be written either. The
+symptom is a configuration error listing files that are present and correct on
+disk, which sends whoever hit it hunting through `config/` for a fault that is
+not there.
+
+`registry.translocated()` detects it and `main.show_translocation_notice()`
+replaces that error with the approval steps. Covered by `tests/test_portability.py`.
+
+Two things established by testing on macOS 26, both contrary to what is usually
+written about this:
+
+- **Moving the folder does not clear it.** Finder-moving the enclosing folder
+  from `Downloads` to `Documents` leaves the quarantine flag on the bundle, and
+  the next launch is translocated again.
+- **Moving the `.app` itself does not clear it either**, and would break the
+  config-beside-the-bundle arrangement even if it did.
+
+Approving the app — or `xattr -dr com.apple.quarantine` on the folder — is what
+actually clears it. Verified: after clearing, the app launches from its real path
+with no translocation mount.
 
 Either way, a copy that arrived from another machine carries a quarantine flag,
 which can also be cleared directly:

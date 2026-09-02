@@ -32,6 +32,52 @@ def root_for(monkeypatch, *, frozen: bool, executable: str) -> Path:
     return registry.project_root()
 
 
+# --------------------------------------------------------------------------
+# App Translocation, which quietly invalidates the arrangement above
+# --------------------------------------------------------------------------
+#
+# A downloaded .app is launched by macOS from a randomised read-only mount with
+# nothing beside it, so project_root() points somewhere config/ and templates/
+# have never been. Observed on macOS 26: the mount carries the bundle alone, and
+# moving the folder does not clear it — only approving the app does.
+
+
+TRANSLOCATED = (
+    "/private/var/folders/qk/T/AppTranslocation/6E475E89-9721-4200-8C1C-228EEA693EE1/d"
+    "/AdoptionFilingGenerator.app/Contents/MacOS/AdoptionFilingGenerator"
+)
+INSTALLED = "/Users/someone/Documents/AdoptionFilingGenerator/AdoptionFilingGenerator.app/Contents/MacOS/AdoptionFilingGenerator"
+
+
+def test_a_translocated_launch_is_recognised(monkeypatch):
+    monkeypatch.setattr(registry.sys, "executable", TRANSLOCATED)
+    assert registry.translocated()
+
+
+def test_an_ordinary_launch_is_not(monkeypatch):
+    monkeypatch.setattr(registry.sys, "executable", INSTALLED)
+    assert not registry.translocated()
+
+
+def test_running_from_source_is_not_translocated():
+    """The developer case: no bundle, no quarantine, nothing to warn about."""
+    assert not registry.translocated()
+
+
+def test_the_notice_names_the_approval_that_clears_it(monkeypatch):
+    """The message is the whole value of detecting this. If it stops naming the
+    step that fixes it, whoever hits it is back to guessing."""
+    from app import main
+
+    monkeypatch.setattr(main.sys, "executable", TRANSLOCATED)
+    page = main._TRANSLOCATED_PAGE.format(where=TRANSLOCATED)
+    assert "Open Anyway" in page
+    assert "Privacy" in page
+    # and it must not send them looking at config/, which is the failure the
+    # detection exists to prevent
+    assert "configuration does not match" not in page
+
+
 def test_from_source_the_root_is_the_repository(monkeypatch):
     monkeypatch.setattr(registry.sys, "frozen", False, raising=False)
     assert (registry.project_root() / "config" / "fields.json").exists()

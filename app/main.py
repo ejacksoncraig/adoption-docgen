@@ -20,7 +20,16 @@ from app import engine, intake, responses
 
 if TYPE_CHECKING:                       # for the annotation below only
     import webview
-from app.registry import INTAKE_DIR, OUTPUT_DIR, UI_DIR, Registry
+from app.registry import (
+    INTAKE_DIR,
+    OUTPUT_DIR,
+    UI_DIR,
+    Registry,
+    office_fields,
+    settings_path,
+    translocated,
+    write_settings,
+)
 from app.schema import ConfigError, IntakeError
 
 WINDOW_TITLE = "Adoption Filing Generator"
@@ -36,7 +45,7 @@ def guarded(fn: Callable[..., dict]) -> Callable[..., dict]:
     def wrapper(*args, **kwargs) -> dict:
         try:
             return fn(*args, **kwargs)
-        except (IntakeError, engine.RenderError) as exc:
+        except (IntakeError, engine.RenderError, ConfigError) as exc:
             return _fail(exc.problems)
         except KeyError as exc:
             return _fail([str(exc.args[0]) if exc.args else "missing key"])
@@ -88,6 +97,36 @@ class Api:
             "saved_intakes": intake.list_intakes(),
             "mode": self.mode,
         }
+
+    # -- the office's own details -----------------------------------------
+
+    @guarded
+    def settings(self, _payload: dict | None = None) -> dict:
+        """The office details, as questions with their current answers."""
+        return {
+            "ok": True,
+            "fields": office_fields(self.registry.schema, self.registry.settings),
+            "path": str(settings_path()),
+        }
+
+    @guarded
+    def save_settings(self, payload: dict) -> dict:
+        """Write the office details, then reload so the next filing uses them.
+
+        Reloading matters: the settings are read once at startup and folded into
+        every derived attorney_ field, so without this the screen would report
+        success while documents kept printing the old signature block until the
+        application was restarted.
+        """
+        write_settings(payload.get("values") or {})
+        self.registry = Registry.load()
+        return {
+            "ok": True,
+            "fields": office_fields(self.registry.schema, self.registry.settings),
+            "attorney_configured": bool(self.registry.settings.get("attorney_short_name")),
+        }
+
+    # -- catalog and form -------------------------------------------------
 
     @guarded
     def form_spec(self, payload: dict) -> dict:
@@ -397,6 +436,59 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+_TRANSLOCATED_PAGE = """
+<!doctype html><meta charset="utf-8">
+<style>
+  body {{ font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 36px 40px;
+          background: #fbfaf8; color: #2c2a26; }}
+  h1 {{ font-size: 19px; margin: 0 0 6px; color: #8c2f28; }}
+  p  {{ max-width: 62ch; color: #57534c; }}
+  ol {{ max-width: 62ch; color: #57534c; }}
+  li {{ margin-bottom: 8px; }}
+  code {{ background: #efece6; padding: 1px 5px; border-radius: 3px;
+          font-family: Menlo, Consolas, monospace; font-size: 13px; }}
+  .quiet {{ color: #8a857c; font-size: 13px; }}
+</style>
+<h1>macOS is running this app from a temporary copy</h1>
+<p>Because it was downloaded, macOS has relocated the application to a read-only
+   folder of its own and left <code>config</code>, <code>templates</code>,
+   <code>output</code> and <code>intake</code> behind. Nothing is wrong with the
+   installation — the program simply cannot see its own files from where macOS
+   has put it.</p>
+<p><strong>To fix it, approve the app once:</strong></p>
+<ol>
+  <li>Quit this window.</li>
+  <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong>.</li>
+  <li>Scroll to <strong>Security</strong>. A line names this application, with an
+      <strong>Open Anyway</strong> button. Click it and confirm.</li>
+  <li>Open the application again. macOS remembers, and this message will not
+      come back.</li>
+</ol>
+<p class="quiet">Moving the folder does not fix this on its own — the approval is
+   what clears it. If there is no Open Anyway button, the same thing can be done
+   in Terminal with
+   <code>xattr -dr com.apple.quarantine </code> followed by the folder.</p>
+<p class="quiet">Running from: {where}</p>
+"""
+
+
+def show_translocation_notice() -> None:
+    """Say what actually happened, rather than listing config files as missing.
+
+    Worth its own screen: the symptom is indistinguishable from a broken
+    installation, and the person seeing it has done nothing wrong.
+    """
+    import webview
+
+    print("macOS has relocated this application; config/ and templates/ are not "
+          "visible from there. Approve it in System Settings > Privacy & Security.",
+          file=sys.stderr)
+    webview.create_window(f"{WINDOW_TITLE} — cannot start",
+                          html=_TRANSLOCATED_PAGE.format(where=_escape(sys.executable)),
+                          width=900, height=620)
+    webview.start()
+
+
 def show_config_error(exc: ConfigError) -> None:
     """A validation failure is a window with a list, not a traceback in a console
     the user will never see. This is the message that saves a bad filing."""
@@ -440,6 +532,13 @@ def self_check() -> int:
 def main() -> int:
     if "--self-check" in sys.argv:
         return self_check()
+
+    # Checked before the configuration, because when this is true the
+    # configuration is guaranteed to look broken and the reason has nothing to
+    # do with it.
+    if translocated():
+        show_translocation_notice()
+        return 2
 
     try:
         registry = Registry.load()

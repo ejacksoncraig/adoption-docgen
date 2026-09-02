@@ -198,6 +198,29 @@
   .field.bool > label { margin: 0; }
   .field[hidden] { display: none; }
 
+  /* ---- office details, reached from the rail rather than the numbered steps ---- */
+  .railaux { padding: 0 12px 4px; }
+  .railaux button {
+    display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    background: none; border: 0; border-radius: var(--r); cursor: pointer;
+    padding: 9px 10px; font: inherit; font-size: 13.5px; color: #b9cdc4;
+  }
+  .railaux button:hover { background: rgba(255,255,255,.08); color: #f0f5f2; }
+  .railaux button[aria-current="true"] {
+    background: rgba(255,255,255,.15); color: #fff; font-weight: 600;
+    box-shadow: inset 2px 0 0 #7fc0a4;
+  }
+  /* Unfilled office details are not an error — nothing is broken yet — but they
+     do stop the first filing, so the way in is marked rather than announced. */
+  .railaux button.attn { color: #f4c98a; }
+  .railaux button.attn .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #f0b46a; flex: none;
+  }
+  .railaux button .dot { width: 6px; height: 6px; flex: none; }
+  .field .src.unused {
+    color: var(--ink-faint); background: #f0eee9; border-color: var(--line);
+  }
+
   /* ---- choices ---- */
   .choices { display: grid; gap: 8px; }
   .choice {
@@ -374,6 +397,16 @@
 
   <hr>
 
+  <!-- Deliberately outside <nav>: this is not one of the numbered steps, and the
+       step logic reads every button in there expecting a number to tick off. -->
+  <div class="railaux">
+    <button id="btnSettings" type="button">
+      <span class="dot"></span>Office details
+    </button>
+  </div>
+
+  <hr>
+
   <div class="context" id="context">
     <div class="line dim" id="ctxEmpty">No adoption type chosen yet.</div>
 
@@ -492,6 +525,36 @@
       </div>
     </section>
 
+    <!-- ---------------- office details ---------------- -->
+    <section class="step" id="step-settings">
+      <div class="page-head">
+        <h2>Office details</h2>
+        <p>Entered once and used on every filing, so they are not retyped on each
+           intake form. Saved to <span class="path" id="settingsPath"></span>.</p>
+      </div>
+
+      <div id="settingsNotes"></div>
+
+      <div class="card">
+        <h3>Attorney of record</h3>
+        <div class="body">
+          <p class="help" id="settingsHint" hidden style="margin: 0 0 16px;">
+            Boxes marked <strong>not printed</strong> are saved, but no template
+            currently prints them — the signature blocks are written into the .docx
+            templates themselves. Filling them in does no harm, and they are ready
+            for a template that asks for them.
+          </p>
+          <div class="grid" id="settingsGrid"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btnSettingsBack">Back</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="btnSaveSettings">Save details</button>
+      </div>
+    </section>
+
   </div>
 </main>
 
@@ -542,6 +605,8 @@ const state = {
   lastFolder: null,
   fromClient: null,   // ids answered by the client, when a form was imported
   response: null,     // the client form being mapped, while the mapper is open
+  attorneyConfigured: false,
+  bootNotes: [],
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -701,10 +766,16 @@ function noteText(box, text) {
 
 const ORDER = ["matter", "intake", "review"];
 
+//: The last numbered step that was on screen. Office details is reached from
+//: the rail rather than the sequence, so leaving it has to return somewhere.
+let lastStep = "matter";
+
 function showStep(name) {
+  if (ORDER.includes(name)) lastStep = name;
   for (const section of document.querySelectorAll(".step")) {
     section.classList.toggle("active", section.id === "step-" + name);
   }
+  $("#btnSettings").setAttribute("aria-current", name === "settings" ? "true" : "false");
   const at = ORDER.indexOf(name);
   for (const tab of document.querySelectorAll("nav button")) {
     const index = ORDER.indexOf(tab.dataset.step);
@@ -717,6 +788,90 @@ function showStep(name) {
     num.textContent = done ? "✓" : num.dataset.step;
   }
   document.querySelector("main").scrollTop = 0;
+}
+
+/* ---------- office details ---------- */
+
+function renderSettings(fields) {
+  const grid = $("#settingsGrid");
+  grid.replaceChildren();
+  let anyUnused = false;
+
+  for (const f of fields) {
+    const wrap = el("div", { className: "field" });
+    wrap.dataset.setting = f.id;
+
+    const label = el("label", { htmlFor: "set-" + f.id, textContent: f.label });
+    if (!f.used) {
+      anyUnused = true;
+      label.append(el("span", { className: "src unused", textContent: "not printed" }));
+    }
+    wrap.append(label, el("input", { type: "text", id: "set-" + f.id, value: f.value }));
+    if (f.hint) wrap.append(el("p", { className: "help", textContent: f.hint }));
+    grid.append(wrap);
+  }
+
+  // Saying so beats letting someone fill in eight boxes and wonder why only one
+  // of them reaches the page.
+  $("#settingsHint").hidden = !anyUnused;
+}
+
+async function openSettings() {
+  const res = await call("settings", {});
+  if (!res.ok) {
+    $("#settingsNotes").replaceChildren(noteBox("error", "Could not read the settings", res.problems));
+    showStep("settings");
+    return;
+  }
+  $("#settingsPath").textContent = res.path;
+  $("#settingsPath").title = res.path;
+  $("#settingsNotes").replaceChildren();
+  renderSettings(res.fields);
+  showStep("settings");
+}
+
+async function saveSettings() {
+  const values = {};
+  for (const wrap of document.querySelectorAll("#settingsGrid .field")) {
+    values[wrap.dataset.setting] = wrap.querySelector("input").value;
+  }
+
+  status("Saving office details…", true);
+  const res = await call("save_settings", { values });
+  if (!res.ok) {
+    $("#settingsNotes").replaceChildren(noteBox("error", "Not saved", res.problems));
+    status("Office details were not saved.");
+    return;
+  }
+
+  renderSettings(res.fields);
+  state.attorneyConfigured = res.attorney_configured;
+  $("#settingsNotes").replaceChildren(
+    noteBox("ok", "Saved. Documents generated from now on will use these details.", []));
+  markSettingsState();
+  renderBootWarnings();
+  status("Office details saved.");
+}
+
+function markSettingsState() {
+  $("#btnSettings").classList.toggle("attn", !state.attorneyConfigured);
+}
+
+//: Rebuilt rather than written once, so filling the details in clears the
+//: warning instead of leaving it contradicting the screen behind it.
+function renderBootWarnings() {
+  const banner = $("#boot");
+  const warnings = [];
+  if (!state.attorneyConfigured) {
+    warnings.push("The office details have not been filled in yet. Open Office details "
+                + "in the sidebar — documents that print a signature block will refuse "
+                + "to generate until they are set.");
+  }
+  for (const note of state.bootNotes || []) warnings.push(note);
+
+  banner.hidden = warnings.length === 0;
+  banner.replaceChildren();
+  if (warnings.length) banner.append(noteBox("warn", "Before the first filing", warnings));
 }
 
 function enableTabs() {
@@ -1307,6 +1462,10 @@ function wire() {
   $("#btnBackToMatter").addEventListener("click", () => showStep("matter"));
   $("#btnToReview").addEventListener("click", async () => { showStep("review"); await loadReview(); });
   $("#btnBackToIntake").addEventListener("click", () => showStep("intake"));
+
+  $("#btnSettings").addEventListener("click", openSettings);
+  $("#btnSettingsBack").addEventListener("click", () => showStep(lastStep));
+  $("#btnSaveSettings").addEventListener("click", saveSettings);
   $("#btnGenerate").addEventListener("click", generate);
   $("#btnSaveIntake").addEventListener("click", saveIntake);
   $("#btnLoadIntake").addEventListener("click", openIntake);
@@ -1348,15 +1507,10 @@ async function boot() {
     ? "(via LibreOffice)"
     : "— LibreOffice was not found on this computer, so PDF export is unavailable.";
 
-  const warnings = [];
-  if (!res.attorney_configured) {
-    warnings.push("No attorney details in config/settings.json yet. Documents that print a signature block will refuse to generate until they are filled in.");
-  }
-  for (const note of res.notes || []) warnings.push(note);
-  if (warnings.length) {
-    banner.hidden = false;
-    banner.replaceChildren(noteBox("warn", "Before the first filing", warnings));
-  }
+  state.attorneyConfigured = res.attorney_configured;
+  state.bootNotes = res.notes || [];
+  markSettingsState();
+  renderBootWarnings();
 
   // In a browser there is no native Save box; these write to their usual folder
   // and say where, so the label should not promise a dialog.
