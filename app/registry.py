@@ -13,6 +13,8 @@ misspelled quietly renders a petition with a blank where a name belongs.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
 from dataclasses import dataclass, field as dc_field
 from pathlib import Path
@@ -78,11 +80,103 @@ def translocated() -> bool:
     return False
 
 
-ROOT = project_root()
+#: The name the application is known by outside its own folder.
+APP_NAME = "Adoption Filing Generator"
+
+
+def bundled_defaults() -> Path | None:
+    """config/ and templates/ as they shipped, carried *inside* the application.
+
+    These are a fallback, not the working copy. The working copy is meant to sit
+    beside the application where the office can drop a new .docx into it, and
+    that stays true. But an application that is only the .app — dragged out of
+    the folder it arrived in, or relocated by macOS — used to be an application
+    with no templates at all, which is a confusing way to discover a rule about
+    where files must be kept.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    base = getattr(sys, "_MEIPASS", "")
+    if not base:
+        return None
+    defaults = Path(base) / "defaults"
+    return defaults if defaults.is_dir() else None
+
+
+def user_data_dir() -> Path:
+    """Per-user working copy, used when there is none beside the application.
+
+    Deliberately *not* Documents. Documents is the obvious choice for somewhere
+    a person can find, and the wrong one here: it is what "Desktop & Documents"
+    syncing uploads to iCloud, and this application writes adoption filings. The
+    generated documents are reachable from the button on the result screen
+    instead, which does not require knowing where they are.
+    """
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA")
+        return (Path(base) if base else Path.home() / "AppData" / "Roaming") / APP_NAME
+    base = os.environ.get("XDG_DATA_HOME")
+    return (Path(base) if base else Path.home() / ".local" / "share") / APP_NAME
+
+
+def data_root() -> Path:
+    """Where config/, templates/, output/ and intake/ are actually read.
+
+    Beside the application when they are there — the arrangement the office is
+    told about, and the one a rebuild preserves. Otherwise a per-user folder,
+    seeded from the copies inside the application, so that a bare .app still
+    runs rather than reporting its own templates missing.
+    """
+    if not getattr(sys, "frozen", False):
+        return project_root()
+    beside = project_root()
+    if (beside / "config" / "matters.json").is_file():
+        return beside
+    return user_data_dir()
+
+
+ROOT = data_root()
 CONFIG_DIR = ROOT / "config"
 TEMPLATES_DIR = ROOT / "templates"
 OUTPUT_DIR = ROOT / "output"
 INTAKE_DIR = ROOT / "intake"
+
+
+def prepare_data() -> list[str]:
+    """Put a working copy in place if there is not one, and say what happened.
+
+    Called once at startup, before the configuration is read. Copies only what
+    is missing: an existing config/ is somebody's settings and templates/ may
+    hold a template they wrote, and neither is replaced by the shipped version.
+    """
+    notes: list[str] = []
+    defaults = bundled_defaults()
+    if defaults is None or ROOT != user_data_dir():
+        return notes
+
+    first_time = not CONFIG_DIR.exists() and not TEMPLATES_DIR.exists()
+    for name in ("config", "templates"):
+        target, source = ROOT / name, defaults / name
+        if target.exists() or not source.is_dir():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, target)
+
+    if first_time:
+        notes.append(
+            f"The templates and settings this application came with have been put in "
+            f"{ROOT}, because there were none beside the application itself."
+        )
+    if translocated():
+        notes.append(
+            "macOS is running this application from a temporary copy, which is what "
+            "it does until an application is approved. It works, but approving it in "
+            "System Settings > Privacy & Security is worth doing: until then it "
+            "cannot see files kept beside it."
+        )
+    return notes
 
 
 def ui_dir() -> Path:

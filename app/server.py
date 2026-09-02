@@ -220,6 +220,9 @@ def in_codespace() -> bool:
 
 
 def serve(port: int | None = None, open_browser: bool = True, host: str = HOST) -> int:
+    from app.registry import prepare_data
+
+    notes = prepare_data()
     try:
         registry = Registry.load()
     except ConfigError as exc:
@@ -227,6 +230,7 @@ def serve(port: int | None = None, open_browser: bool = True, host: str = HOST) 
         for problem in exc.problems:
             print(f"  - {problem}", file=sys.stderr)
         return 2
+    registry.notes = list(notes) + list(registry.notes)
 
     from app.registry import INTAKE_DIR, OUTPUT_DIR
 

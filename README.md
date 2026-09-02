@@ -29,6 +29,14 @@ will be overwritten. Edit the repository copies, then rebuild.
 
 The one exception is `config/settings.json`: the office's own attorney details
 belong to the installation, so a rebuild keeps whatever is already in the bundle.
+Those details are edited in the application itself — **Office details** in the
+sidebar — rather than by hand, though the file is still ordinary JSON.
+
+A packaged build also carries a copy of `config/` and `templates/` *inside* the
+executable. Those are a fallback, never the working copy: they are used only when
+there are none beside the application, which happens when somebody moves the
+`.app` on its own or macOS relocates it. In that case the application seeds a
+per-user folder from them and says where it put it. See `docs/MACOS.md`.
 
 ## Start here
 

@@ -64,18 +64,90 @@ def test_running_from_source_is_not_translocated():
     assert not registry.translocated()
 
 
-def test_the_notice_names_the_approval_that_clears_it(monkeypatch):
-    """The message is the whole value of detecting this. If it stops naming the
-    step that fixes it, whoever hits it is back to guessing."""
-    from app import main
+# --------------------------------------------------------------------------
+# an application that is only the .app
+# --------------------------------------------------------------------------
+#
+# The templates are meant to sit beside the application. When they do not —
+# because somebody dragged the .app out of the folder it came in, or because
+# macOS relocated it — the application used to report every one of its own
+# templates as missing. It now falls back to a per-user copy of what it shipped
+# with.
 
-    monkeypatch.setattr(main.sys, "executable", TRANSLOCATED)
-    page = main._TRANSLOCATED_PAGE.format(where=TRANSLOCATED)
-    assert "Open Anyway" in page
-    assert "Privacy" in page
-    # and it must not send them looking at config/, which is the failure the
-    # detection exists to prevent
-    assert "configuration does not match" not in page
+
+def test_the_copies_beside_the_application_are_preferred(monkeypatch, tmp_path):
+    """The arrangement the office is told about, and the one a rebuild keeps."""
+    installed = tmp_path / "AdoptionFilingGenerator"
+    (installed / "config").mkdir(parents=True)
+    (installed / "config" / "matters.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(registry.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(registry.sys, "executable", str(installed / "AdoptionFilingGenerator"))
+    assert registry.data_root() == installed
+
+
+def test_with_nothing_beside_it_a_per_user_folder_is_used(monkeypatch, tmp_path):
+    monkeypatch.setattr(registry.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(registry.sys, "executable", str(tmp_path / "alone" / "App"))
+    assert registry.data_root() == registry.user_data_dir()
+
+
+def test_running_from_source_still_uses_the_repository(monkeypatch):
+    monkeypatch.setattr(registry.sys, "frozen", False, raising=False)
+    assert (registry.data_root() / "config" / "fields.json").exists()
+
+
+def test_the_per_user_folder_is_not_in_documents():
+    """Documents is what "Desktop & Documents" syncing uploads to iCloud, and
+    this application writes adoption filings. See the confidentiality note in
+    README.md."""
+    assert "Documents" not in registry.user_data_dir().parts
+
+
+def test_what_shipped_is_copied_in_when_there_is_nothing(monkeypatch, tmp_path):
+    defaults, root = tmp_path / "defaults", tmp_path / "data"
+    (defaults / "config").mkdir(parents=True)
+    (defaults / "config" / "matters.json").write_text("{}", encoding="utf-8")
+    (defaults / "templates").mkdir()
+    (defaults / "templates" / "a.docx").write_text("x", encoding="utf-8")
+
+    monkeypatch.setattr(registry, "bundled_defaults", lambda: defaults)
+    monkeypatch.setattr(registry, "user_data_dir", lambda: root)
+    monkeypatch.setattr(registry, "ROOT", root)
+    monkeypatch.setattr(registry, "CONFIG_DIR", root / "config")
+    monkeypatch.setattr(registry, "TEMPLATES_DIR", root / "templates")
+
+    notes = registry.prepare_data()
+
+    assert (root / "config" / "matters.json").exists()
+    assert (root / "templates" / "a.docx").exists()
+    assert any(str(root) in n for n in notes)      # and it says where they went
+
+
+def test_an_existing_copy_is_never_overwritten(monkeypatch, tmp_path):
+    """config/ holds the office's own settings and templates/ may hold one they
+    wrote. Neither is replaced by the version that shipped."""
+    defaults, root = tmp_path / "defaults", tmp_path / "data"
+    (defaults / "config").mkdir(parents=True)
+    (defaults / "config" / "settings.json").write_text('{"a": "shipped"}', encoding="utf-8")
+    (root / "config").mkdir(parents=True)
+    (root / "config" / "settings.json").write_text('{"a": "theirs"}', encoding="utf-8")
+
+    monkeypatch.setattr(registry, "bundled_defaults", lambda: defaults)
+    monkeypatch.setattr(registry, "user_data_dir", lambda: root)
+    monkeypatch.setattr(registry, "ROOT", root)
+    monkeypatch.setattr(registry, "CONFIG_DIR", root / "config")
+    monkeypatch.setattr(registry, "TEMPLATES_DIR", root / "templates")
+
+    registry.prepare_data()
+    assert "theirs" in (root / "config" / "settings.json").read_text(encoding="utf-8")
+
+
+def test_nothing_is_copied_when_running_from_source(monkeypatch):
+    """There is no bundle to copy out of, and the repository is not a place to
+    scatter files into."""
+    monkeypatch.setattr(registry, "bundled_defaults", lambda: None)
+    assert registry.prepare_data() == []
 
 
 def test_from_source_the_root_is_the_repository(monkeypatch):

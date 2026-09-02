@@ -92,6 +92,16 @@ def run_pyinstaller(universal: bool = False) -> None:
         "--windowed",                      # no console window behind the app
         "--name", NAME,
         "--add-data", f"{ROOT / 'app' / 'ui'}{separator}ui",
+        # A second copy of config/ and templates/, carried inside the
+        # application. The copies *beside* it remain the ones the office edits
+        # and the ones a rebuild preserves; these are only reached when there
+        # are none beside it — an .app dragged out of the folder it arrived in,
+        # or one macOS has relocated. Without them that situation is an
+        # application that reports every one of its own templates missing,
+        # which is how the first person to install this on a second Mac spent
+        # their afternoon.
+        "--add-data", f"{ROOT / 'config'}{separator}defaults/config",
+        "--add-data", f"{ROOT / 'templates'}{separator}defaults/templates",
         *[argument for package in COLLECT for argument in ("--collect-all", package)],
         "--distpath", str(STAGING),
         "--workpath", str(WORK),

@@ -107,6 +107,19 @@ The Intel half can be smoke-tested from an Apple Silicon Mac through Rosetta:
 arch -x86_64 dist/AdoptionFilingGenerator/AdoptionFilingGenerator.app/Contents/MacOS/AdoptionFilingGenerator --self-check
 ```
 
+### Asking an installation what it is using
+
+Supporting a copy on somebody else's Mac otherwise means asking them to guess:
+
+```bash
+/path/to/AdoptionFilingGenerator.app/Contents/MacOS/AdoptionFilingGenerator --where
+```
+
+It prints whether macOS has relocated it, whether there is a copy of `config/`
+and `templates/` beside it, where the per-user fallback is, and which of the two
+is actually in use. Every question that has come up so far is answered by that
+list.
+
 ### Packaging it to send
 
 Use `ditto`, not `zip`. A `.app` contains framework symlinks that `zip -r`
@@ -164,8 +177,19 @@ symptom is a configuration error listing files that are present and correct on
 disk, which sends whoever hit it hunting through `config/` for a fault that is
 not there.
 
-`registry.translocated()` detects it and `main.show_translocation_notice()`
-replaces that error with the approval steps. Covered by `tests/test_portability.py`.
+This is no longer fatal. `build.py` packs a second copy of `config/` and
+`templates/` *inside* the bundle, and `registry.data_root()` falls back to a
+per-user folder — `~/Library/Application Support/Adoption Filing Generator` —
+seeded from them on first run. The copies beside the application still win when
+they are there, so the office's own edited templates are used and a rebuild
+preserves them; the fallback only catches the case where there is nothing beside
+the application at all.
+
+That covers both ways this went wrong on somebody else's Mac: a translocated
+launch, and an `.app` dragged out of the folder it arrived in. `registry.translocated()`
+still reports the first as a note on the opening screen, because a relocated app
+cannot see files kept beside it and the approval is worth doing. Covered by
+`tests/test_portability.py`.
 
 Two things established by testing on macOS 26, both contrary to what is usually
 written about this:

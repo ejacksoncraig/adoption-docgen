@@ -273,11 +273,12 @@
   .note ul { margin: 6px 0 0; padding-left: 18px; }
   .note li { margin-bottom: 2px; }
   .note p { margin: 6px 0 0; }
-  .note .linky {
-    background: none; border: 0; padding: 4px 0 0; margin: 0; font: inherit; font-size: 12.5px;
+  .linky {
+    background: none; border: 0; padding: 0; margin: 0; font: inherit;
     color: inherit; opacity: .8; text-decoration: underline; cursor: pointer;
   }
-  .note .linky:hover { opacity: 1; }
+  .linky:hover { opacity: 1; }
+  .note .linky { padding: 4px 0 0; font-size: 12.5px; }
 
   /* ---- file list ---- */
   ul.files { list-style: none; margin: 0; padding: 0; }
@@ -530,7 +531,9 @@
       <div class="page-head">
         <h2>Office details</h2>
         <p>Entered once and used on every filing, so they are not retyped on each
-           intake form. Saved to <span class="path" id="settingsPath"></span>.</p>
+           intake form. Saved to <span class="path" id="settingsPath"></span>
+           — <button type="button" class="linky" id="btnOpenConfig">open that folder</button>,
+           which is also where the templates are kept.</p>
       </div>
 
       <div id="settingsNotes"></div>
@@ -1464,6 +1467,12 @@ function wire() {
   $("#btnBackToIntake").addEventListener("click", () => showStep("intake"));
 
   $("#btnSettings").addEventListener("click", openSettings);
+  $("#btnOpenConfig").addEventListener("click", () => {
+    // The settings file's own folder, which is also where templates/ sits.
+    const file = $("#settingsPath").title || $("#settingsPath").textContent;
+    const folder = file.replace(/[\\/][^\\/]*$/, "");
+    if (folder) call("open_folder", { path: folder });
+  });
   $("#btnSettingsBack").addEventListener("click", () => showStep(lastStep));
   $("#btnSaveSettings").addEventListener("click", saveSettings);
   $("#btnGenerate").addEventListener("click", generate);
@@ -1500,7 +1509,10 @@ async function boot() {
 
   state.catalog = res.catalog;
   state.pdfAvailable = res.pdf_available;
-  $("#outputPath").textContent = "…\\" + res.output_dir.split(/[\\/]/).slice(-2).join("\\");
+  // Shortened for the footer, in the separator this computer actually uses —
+  // a Mac showing a Windows path looks like somebody else's software.
+  const sep = res.output_dir.includes("\\") ? "\\" : "/";
+  $("#outputPath").textContent = "…" + sep + res.output_dir.split(/[\\/]/).slice(-2).join(sep);
   $("#outputPath").title = res.output_dir;
   $("#optPdf").disabled = !res.pdf_available;
   $("#pdfHint").textContent = res.pdf_available

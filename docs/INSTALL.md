@@ -20,17 +20,22 @@ output/                         generated filings land here
 intake/                         saved intake forms land here
 ```
 
-### 2. Put the whole folder somewhere sensible
+### 2. Put it somewhere sensible
 
-Your Documents folder or Applications is fine.
+Your Documents folder or Applications is fine. Leaving it in Downloads works
+too.
 
-> **Keep the folder together.** Do not drag `AdoptionFilingGenerator.app` out on
-> its own. The program looks for `config/` and `templates/` *beside* itself, and
-> on its own it will not start. Move the whole `AdoptionFilingGenerator` folder,
-> not the app inside it.
+Moving the whole folder keeps everything together, which is the tidiest
+arrangement: the program uses the `config` and `templates` beside it, and a new
+template can be dropped straight into that folder.
+
+If you move only `AdoptionFilingGenerator.app` and leave the rest behind, that
+is fine as well — it carries a copy of its templates inside it, and sets itself
+up in a folder of its own the first time it runs. It will tell you where. You do
+not have to get this right for the program to work.
 
 > **Not inside iCloud Drive, Google Drive, OneDrive or Dropbox.** The program
-> writes finished filings into its own `output/` folder. Put that folder inside
+> writes finished filings into its own `output` folder. Put that folder inside
 > something that syncs, and every filing — real names, dates of birth, case
 > numbers — is copied to a cloud account automatically, as soon as it is
 > generated. That is the one thing this program is built not to do: it makes no
@@ -62,15 +67,14 @@ is a program written for one office rather than sold. macOS shows this about
 5. Open the application again. **macOS remembers** — from now on it is an
    ordinary double-click.
 
-This step is not optional and not cosmetic. Until you do it, macOS runs the
-program from a temporary read-only copy of its own and leaves `config` and
-`templates` behind, so it starts up and then reports that it cannot find its own
-files. If you see a window saying *"macOS is running this app from a temporary
-copy"*, that is what happened — do the four steps above and it goes away.
+Until you do it, macOS runs the program from a temporary copy of its own rather
+than from where you put it. The program copes with that — it will still open and
+still generate documents — but it cannot see anything you keep beside it, so the
+approval is worth doing once and being done with.
 
-**Moving the folder does not fix it.** Dragging it to Documents or Applications
-changes nothing on its own; the approval in step 3 is what clears it. This was
-tested rather than assumed.
+**Moving the folder does not clear it.** Dragging it to Documents or
+Applications changes nothing on its own; the approval above is what clears it.
+This was tested rather than assumed.
 
 If there is no **Open Anyway** button, the same thing can be done in Terminal.
 Type this, with a trailing space, then drag the `AdoptionFilingGenerator` folder

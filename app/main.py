@@ -26,8 +26,8 @@ from app.registry import (
     UI_DIR,
     Registry,
     office_fields,
+    prepare_data,
     settings_path,
-    translocated,
     write_settings,
 )
 from app.schema import ConfigError, IntakeError
@@ -436,59 +436,6 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-_TRANSLOCATED_PAGE = """
-<!doctype html><meta charset="utf-8">
-<style>
-  body {{ font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 36px 40px;
-          background: #fbfaf8; color: #2c2a26; }}
-  h1 {{ font-size: 19px; margin: 0 0 6px; color: #8c2f28; }}
-  p  {{ max-width: 62ch; color: #57534c; }}
-  ol {{ max-width: 62ch; color: #57534c; }}
-  li {{ margin-bottom: 8px; }}
-  code {{ background: #efece6; padding: 1px 5px; border-radius: 3px;
-          font-family: Menlo, Consolas, monospace; font-size: 13px; }}
-  .quiet {{ color: #8a857c; font-size: 13px; }}
-</style>
-<h1>macOS is running this app from a temporary copy</h1>
-<p>Because it was downloaded, macOS has relocated the application to a read-only
-   folder of its own and left <code>config</code>, <code>templates</code>,
-   <code>output</code> and <code>intake</code> behind. Nothing is wrong with the
-   installation — the program simply cannot see its own files from where macOS
-   has put it.</p>
-<p><strong>To fix it, approve the app once:</strong></p>
-<ol>
-  <li>Quit this window.</li>
-  <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong>.</li>
-  <li>Scroll to <strong>Security</strong>. A line names this application, with an
-      <strong>Open Anyway</strong> button. Click it and confirm.</li>
-  <li>Open the application again. macOS remembers, and this message will not
-      come back.</li>
-</ol>
-<p class="quiet">Moving the folder does not fix this on its own — the approval is
-   what clears it. If there is no Open Anyway button, the same thing can be done
-   in Terminal with
-   <code>xattr -dr com.apple.quarantine </code> followed by the folder.</p>
-<p class="quiet">Running from: {where}</p>
-"""
-
-
-def show_translocation_notice() -> None:
-    """Say what actually happened, rather than listing config files as missing.
-
-    Worth its own screen: the symptom is indistinguishable from a broken
-    installation, and the person seeing it has done nothing wrong.
-    """
-    import webview
-
-    print("macOS has relocated this application; config/ and templates/ are not "
-          "visible from there. Approve it in System Settings > Privacy & Security.",
-          file=sys.stderr)
-    webview.create_window(f"{WINDOW_TITLE} — cannot start",
-                          html=_TRANSLOCATED_PAGE.format(where=_escape(sys.executable)),
-                          width=900, height=620)
-    webview.start()
-
-
 def show_config_error(exc: ConfigError) -> None:
     """A validation failure is a window with a list, not a traceback in a console
     the user will never see. This is the message that saves a bad filing."""
@@ -529,22 +476,47 @@ def self_check() -> int:
     return 1 if missing else 0
 
 
+def where() -> int:
+    """Print which files this copy is actually using.
+
+    Support for an installation on somebody else's computer otherwise means
+    asking them to guess. Every question that has come up so far — are the
+    templates being found, is macOS running this from somewhere else, which
+    settings file is being written — is answered by this list.
+    """
+    from app import registry
+
+    print(f"application  {sys.executable}")
+    print(f"frozen       {bool(getattr(sys, 'frozen', False))}")
+    print(f"relocated    {registry.translocated()}   (macOS App Translocation)")
+    print(f"beside it    {registry.project_root()}")
+    print(f"defaults in  {registry.bundled_defaults()}")
+    print(f"per-user     {registry.user_data_dir()}")
+    print(f"USING        {registry.ROOT}")
+    print(f"  config     {registry.CONFIG_DIR}  {'ok' if registry.CONFIG_DIR.is_dir() else 'MISSING'}")
+    print(f"  templates  {registry.TEMPLATES_DIR}  {'ok' if registry.TEMPLATES_DIR.is_dir() else 'MISSING'}")
+    print(f"  output     {registry.OUTPUT_DIR}")
+    print(f"  intake     {registry.INTAKE_DIR}")
+    return 0
+
+
 def main() -> int:
     if "--self-check" in sys.argv:
         return self_check()
+    if "--where" in sys.argv:
+        return where()
 
-    # Checked before the configuration, because when this is true the
-    # configuration is guaranteed to look broken and the reason has nothing to
-    # do with it.
-    if translocated():
-        show_translocation_notice()
-        return 2
+    # Before the configuration is read: this is what puts a working copy in
+    # place when there is none beside the application, which used to be a
+    # configuration error listing every template as missing.
+    notes = prepare_data()
 
     try:
         registry = Registry.load()
     except ConfigError as exc:
         show_config_error(exc)
         return 2
+    registry.notes = list(notes) + list(registry.notes)
 
     import webview
 
