@@ -472,8 +472,60 @@ def self_check() -> int:
 
     for name in missing:
         print(f"missing dependency: {name}", file=sys.stderr)
-    print("self-check: " + ("incomplete" if missing else "all dependencies present"), file=sys.stderr)
-    return 1 if missing else 0
+    if missing:
+        print("self-check: incomplete", file=sys.stderr)
+        return 1
+
+    problem = _render_check()
+    if problem:
+        print(f"cannot generate: {problem}", file=sys.stderr)
+        print("self-check: incomplete", file=sys.stderr)
+        return 1
+
+    print("self-check: all dependencies present, and a document rendered", file=sys.stderr)
+    return 0
+
+
+def _render_check() -> str | None:
+    """Actually generate a document, into a temporary folder that is thrown away.
+
+    Importing a library is not the same as it working. python-docx carries data
+    files of its own — ``docx/templates/default-header.xml`` and friends — which
+    an import never touches and which a packaged build can leave behind or leave
+    unreachable. That failure surfaces the first time somebody presses Generate,
+    which is the worst possible moment and the furthest from anyone who can fix
+    it. Rendering here moves it to the build.
+    """
+    import tempfile
+
+    from app import engine
+    from app.registry import Registry, bundled_defaults, prepare_data
+    from app import intake as intake_module
+
+    try:
+        prepare_data()
+        defaults = bundled_defaults()
+        if defaults is not None and (defaults / "config").is_dir():
+            registry = Registry.load(defaults / "config", defaults / "templates")
+        else:
+            registry = Registry.load()
+
+        matter = registry.matters[0]
+        variant = matter.variants[0]
+        values = intake_module.random_values(registry.schema, variant.field_groups, seed=1)
+        # Generation refuses without an attorney of record, which is right, and
+        # is not what is being tested here.
+        registry.settings = dict(registry.settings)
+        registry.settings.setdefault("attorney_short_name", "SELF CHECK")
+        if not registry.settings["attorney_short_name"]:
+            registry.settings["attorney_short_name"] = "SELF CHECK"
+
+        with tempfile.TemporaryDirectory() as scratch:
+            engine.generate(registry, matter.id, variant.id, values,
+                            output_root=Path(scratch))
+    except Exception as exc:                           # noqa: BLE001 - report it
+        return f"{exc.__class__.__name__}: {exc}"
+    return None
 
 
 def where() -> int:

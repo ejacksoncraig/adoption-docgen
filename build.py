@@ -75,7 +75,12 @@ PRESERVE = ("config/settings.json",)
 #: made it in. pypdf is imported inside a function — only when a client's form
 #: arrives as a PDF — and PyInstaller's scan missed it, so the packaged app was
 #: built without it and would have failed at the moment someone used the feature.
-COLLECT = ("webview", "pypdf")
+#: docx and docxtpl are here for their *data*, not their code. python-docx reads
+#: docx/templates/default-header.xml and half a dozen siblings off disk when it
+#: assembles a document — files no import ever touches, so a build missing them
+#: passes every check that only imports and then fails at Generate, on somebody
+#: else's computer, with a path they have no way to interpret.
+COLLECT = ("webview", "pypdf", "docx", "docxtpl")
 
 #: The built application checks its own dependencies; see main.self_check. Asking
 #: the .exe whether it can import what it needs beats inspecting the folder, which
@@ -345,7 +350,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Add the missing package to COLLECT in this script, then build again.",
               file=sys.stderr)
         return 1
-    print("  self-check: all dependencies present")
+    print("  self-check: every dependency present, and the built application "
+          "generated a document")
 
     print("")
     print(f"Built {built_executable()}")
