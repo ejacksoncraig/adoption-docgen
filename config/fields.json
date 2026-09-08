@@ -112,10 +112,10 @@
       "format": "month_year",
       "help": "Prints as \"in September of 2024\" in the body of the petition. Only the month and year are printed, so the day may be approximate." },
 
-    { "id": "kinship", "group": "dhs", "type": "bool", "label": "Are the Petitioners related to the child(ren)?",
+    { "id": "kinship", "group": "case", "type": "bool", "label": "Are the Petitioners related to the child(ren)?",
       "required": true,
-      "help": "A kinship placement. Yes adds a sentence to paragraph 2 of the Petition naming the relationship." },
-    { "id": "kinship_relationship", "group": "dhs", "type": "text", "label": "Relationship to the child(ren)",
+      "help": "Yes adds a sentence to paragraph 2 of the Petition naming the relationship. In the \"case\" group, not \"dhs\", because a kinship placement is not only a DHS matter — it is asked on every intake." },
+    { "id": "kinship_relationship", "group": "case", "type": "text", "label": "Relationship to the child(ren)",
       "required": false, "depends_on": "kinship",
       "help": "Completes \"related to the minor child(ren) being the ____\" — for example \"maternal grandparents\" or \"paternal aunt and uncle\"." },
 
