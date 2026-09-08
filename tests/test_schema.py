@@ -66,7 +66,8 @@ def test_derived_values(schema, pilot_groups, today):
     assert ctx["petitioner1_age"] == 41
     assert ctx["child1_under_12"] is True
     assert ctx["case_year"] == "2026"
-    assert ctx["foster_placement_date"] == "21st day of September, 2024"
+    # a placement is remembered as a month, not a day; see format_date
+    assert ctx["foster_placement_date"] == "September of 2024"
 
 
 def test_under_12_flips_with_the_date_of_birth(schema, pilot_groups, today):

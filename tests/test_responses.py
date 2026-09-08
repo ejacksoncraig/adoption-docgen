@@ -276,6 +276,7 @@ def test_an_imported_response_generates_documents(registry, sheet, columns, tmp_
         "petitioner1_birth_state": "Oklahoma",
         "child1_birth_state": "Oklahoma",
         "icwa_applies": False,
+        "kinship": False,
         "attorney_fees_summary": fixtures.BASE["attorney_fees_summary"],
     })
     assert registry.schema.missing_required(values, registry.variant(PILOT_MATTER, PILOT_VARIANT).field_groups) == []

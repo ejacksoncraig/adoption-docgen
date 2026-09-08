@@ -109,8 +109,15 @@
 
     { "id": "deprived_action_county", "group": "dhs", "type": "text", "label": "County of the deprived action", "required": true },
     { "id": "foster_placement_date", "group": "dhs", "type": "date", "label": "Date of foster placement", "required": true,
-      "format": "long_ordinal",
-      "help": "Prints as \"the 21st day of September, 2024\" in the body of the petition." },
+      "format": "month_year",
+      "help": "Prints as \"in September of 2024\" in the body of the petition. Only the month and year are printed, so the day may be approximate." },
+
+    { "id": "kinship", "group": "dhs", "type": "bool", "label": "Are the Petitioners related to the child(ren)?",
+      "required": true,
+      "help": "A kinship placement. Yes adds a sentence to paragraph 2 of the Petition naming the relationship." },
+    { "id": "kinship_relationship", "group": "dhs", "type": "text", "label": "Relationship to the child(ren)",
+      "required": false, "depends_on": "kinship",
+      "help": "Completes \"related to the minor child(ren) being the ____\" — for example \"maternal grandparents\" or \"paternal aunt and uncle\"." },
 
     { "id": "icwa_applies", "group": "icwa", "type": "bool", "label": "Does ICWA apply?", "required": true,
       "help": "Selects between the ICWA and non-ICWA versions of the relevant paragraphs in both the Petition and the Decree." },

@@ -72,7 +72,7 @@ def ordinal(n: int) -> str:
     return f"{n}{_ORDINAL_SUFFIX.get(n % 10, 'th')}"
 
 
-DATE_STYLES = ("mdy", "long", "long_ordinal", "iso")
+DATE_STYLES = ("mdy", "long", "long_ordinal", "month_year", "iso")
 
 
 def format_date(d: date, style: str) -> str:
@@ -81,7 +81,13 @@ def format_date(d: date, style: str) -> str:
     mdy           3/9/2024          (caption "DOB:" lines)
     long          March 9, 2024
     long_ordinal  9th day of March, 2024   (body prose: "on the ____,")
+    month_year    March of 2024     (body prose: "in ____,")
     iso           2024-03-09        (filenames, saved intake)
+
+    month_year exists because a placement is remembered as a month, not a day.
+    Asking for an exact date and then printing it produced "obtained placement
+    of the minor children on the 1st day of December, 2024" — a precision the
+    office does not have and the court does not want.
     """
     if style == "mdy":
         return f"{d.month}/{d.day}/{d.year}"
@@ -89,6 +95,8 @@ def format_date(d: date, style: str) -> str:
         return f"{MONTH_NAMES[d.month]} {d.day}, {d.year}"
     if style == "long_ordinal":
         return f"{ordinal(d.day)} day of {MONTH_NAMES[d.month]}, {d.year}"
+    if style == "month_year":
+        return f"{MONTH_NAMES[d.month]} of {d.year}"
     if style == "iso":
         return d.isoformat()
     raise ConfigError([f"unknown date format {style!r} (expected one of {', '.join(DATE_STYLES)})"])

@@ -143,7 +143,7 @@ def test_dates_and_ages_are_rendered_in_the_shape_each_sentence_needs(base_text)
     assert "DOB:" in base_text and "3/2/2015" in base_text          # caption, M/D/YYYY
     assert "born on the 2nd day of March, 2015" in base_text        # prose, ordinal
     assert "is now 41 years of age" in base_text                    # computed from DOB
-    assert "on the 21st day of September, 2024" in base_text        # foster placement
+    assert "in September of 2024" in base_text                      # foster placement: month, not day
 
 
 def test_every_county_in_the_document_follows_the_filing_county(registry, tmp_path, today):

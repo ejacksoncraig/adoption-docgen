@@ -38,6 +38,7 @@ BASE: dict[str, Any] = {
     "bio_father_status": "relinquished",
     "deprived_action_county": "Sample",
     "foster_placement_date": "2024-09-21",
+    "kinship": False,
     "attorney_fees_summary": "Hourly Rate = $0.00; Total = $0.00 (sample)",
     "icwa_applies": True,
     "tribe": "Sample Nation",

@@ -13,7 +13,7 @@ Comes now SAMPLE PETITIONER, and respectfully alleges and states as follows:
 3. That the minor child, SAMPLE CHILD, is a Caucasian male child, who was born on the 2nd day of March, 2015, at Sample Regional Hospital, in the City of Sampletown, Sample County, State of Oklahoma.
 4. That the Petitioner, SAMPLE PETITIONER, is a Caucasian female who was born on the 15th day of June, 1985, in Oklahoma and is now 41 years of age.
 5. That your Petitioner desires to adopt SAMPLE CHILD and desires to change the name of SAMPLE CHILD to the name of SAMPLE NEW CHILD NAME.
-6. That the child is in the legal custody of the Department of Human Services pursuant to a juvenile deprived action filed in the District Court of Sample County, State of Oklahoma. That the Petitioner obtained foster parent placement of the minor child on the 21st day of September, 2024, and the minor has resided with the Petitioner since that time.
+6. That the child is in the legal custody of the Department of Human Services pursuant to a juvenile deprived action filed in the District Court of Sample County, State of Oklahoma. That the Petitioner obtained foster parent placement of the minor child in September of 2024, and the minor has resided with the Petitioner since that time.
 7. That the minor child, SAMPLE CHILD, may receive a subsidy from the Department of Human Services, but possesses no other real or personal property except for clothing and personal effects of nominal value. That a copy of the subsidy agreement from the Department of Human services will be filed herein.
 8. That your Petitioner desires to adopt said child as the Petitioner’s own lawful child and desires that the relationship of parent and child be fully established between said Petitioner and said child.
 9. That the Home Study for the Petitioner is completed and has been filed herein and it is in the best interest of the minor child that the Court waive the entry of an Interlocutory Decree and the waiting period for (6) months as specifically provided for in Title 10 O.S. Sec. 7505-6.3, known as the Uniform Adoption Act of the State of Oklahoma and that a Final Decree of Adoption should be approved by this Court as soon as possible.
@@ -36,8 +36,10 @@ STATE OF OKLAHOMA )
 ) ss.
 COUNTY OF WAGONER )
 SAMPLE PETITIONER, of lawful age, being first duly sworn upon oath state: That the affiant is the Petitioner above named, that affiant has read the foregoing Petition and knows the contents thereof, and that the facts therein set forth are true.
-SAMPLE PETITIONER
+__________________________________
+SAMPLE PETITIONER, Petitioner
 Subscribed and sworn to before me this _____ day of __________________, 2026.
+__________________________________
 Notary Public
 IN THE DISTRICT COURT IN AND FOR WAGONER COUNTY
 STATE OF OKLAHOMA
@@ -67,6 +69,7 @@ That this child is determined by the Oklahoma Human Services to be an eligible s
 IT IS THEREFORE ORDERED, ADJUDGED AND DECREED BY THE COURT that said child shall henceforth be the lawfully adopted child of the Petitioner, SAMPLE PETITIONER, herein, and that the name of said child is hereby changed from SAMPLE CHILD to SAMPLE NEW CHILD NAME, and that henceforth the exclusive custody, care, nurture, and education of said child is hereby vested in the Petitioner, SAMPLE PETITIONER.
 IT IS FURTHER ORDERED, ADJUDGED AND DECREED BY THE COURT that henceforth the relationship of parent and child and all the rights, duties and other legal consequences of the natural relation of parent and child shall exist between the child herein adopted and the adopting parent, SAMPLE PETITIONER.
 JUDGE OF THE DISTRICT COURT
+__________________________________
 SAMPLE PETITIONER, Petitioner
 By:
 Terri Raye Craig, OBA #16485
