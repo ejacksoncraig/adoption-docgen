@@ -23,7 +23,17 @@
 
   "fields": [
     { "id": "county", "group": "case", "type": "select", "label": "Filing county",
-      "required": true, "options": ["Wagoner", "Tulsa", "Rogers", "Muskogee", "Carter", "Washington", "Cherokee", "Creek", "Mayes", "Okmulgee"],
+      "required": true, "searchable": true,
+      "options": ["Adair", "Alfalfa", "Atoka", "Beaver", "Beckham", "Blaine", "Bryan", "Caddo",
+        "Canadian", "Carter", "Cherokee", "Choctaw", "Cimarron", "Cleveland", "Coal", "Comanche",
+        "Cotton", "Craig", "Creek", "Custer", "Delaware", "Dewey", "Ellis", "Garfield", "Garvin",
+        "Grady", "Grant", "Greer", "Harmon", "Harper", "Haskell", "Hughes", "Jackson", "Jefferson",
+        "Johnston", "Kay", "Kingfisher", "Kiowa", "Latimer", "LeFlore", "Lincoln", "Logan", "Love",
+        "Major", "Marshall", "Mayes", "McClain", "McCurtain", "McIntosh", "Murray", "Muskogee",
+        "Noble", "Nowata", "Okfuskee", "Oklahoma", "Okmulgee", "Osage", "Ottawa", "Pawnee", "Payne",
+        "Pittsburg", "Pontotoc", "Pottawatomie", "Pushmataha", "Roger Mills", "Rogers", "Seminole",
+        "Sequoyah", "Stephens", "Texas", "Tillman", "Tulsa", "Wagoner", "Washington", "Washita",
+        "Woods", "Woodward"],
       "help": "County whose district court this is filed in." },
     { "id": "county_upper", "group": "case", "type": "text", "derived": true },
     { "id": "case_number", "group": "case", "type": "text", "label": "Case number",

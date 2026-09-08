@@ -160,6 +160,12 @@ class FieldDef:
     date_format: str = "mdy"
     default: str | None = None
     multiline: bool = False
+    #: A select field with a long option list (Oklahoma's 77 counties) is faster
+    #: to reach by typing than by scrolling. Purely a UI hint for form_spec —
+    #: validation still checks the answer against options the same as any
+    #: other select, so free-typed text that matches nothing is caught at
+    #: Review exactly like a mistyped answer to any other field.
+    searchable: bool = False
     #: None means "follow the group". False keeps one field off the questionnaire
     #: even though the rest of its group belongs there.
     questionnaire: bool | None = None
@@ -195,6 +201,7 @@ class FieldDef:
             default=raw.get("default"),
             multiline=bool(raw.get("multiline", False)),
             questionnaire=raw.get("questionnaire"),
+            searchable=bool(raw.get("searchable", False)),
         )
 
 

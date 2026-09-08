@@ -175,6 +175,12 @@ def _prompt_for(fd: FieldDef) -> str:
     if fd.type == "bool":
         return "Yes  /  No"
     if fd.type == "select":
+        # A long list (Oklahoma's 77 counties) is unreadable spelled out across
+        # a printed line — the same reason it is searchable on screen. A blank
+        # line to write the answer on is more useful on paper than a wall of
+        # choices, so this reuses that same signal.
+        if fd.searchable:
+            return _ANSWER_LINE
         return "  /  ".join(o.capitalize() for o in fd.options)
     if fd.type == "date":
         return "____ /____ /________   (month / day / year)"

@@ -37,6 +37,7 @@ def test_date_formats():
     assert format_date(d, "mdy") == "3/9/2024"
     assert format_date(d, "long") == "March 9, 2024"
     assert format_date(d, "long_ordinal") == "9th day of March, 2024"
+    assert format_date(d, "month_year") == "March of 2024"
     assert format_date(d, "iso") == "2024-03-09"
 
 

@@ -422,6 +422,7 @@ class Registry:
                             "options": list(fd.options),
                             "help": fd.help,
                             "depends_on": fd.depends_on,
+                            "searchable": fd.searchable,
                         }
                         for fd in self.schema.input_fields([g])
                     ],

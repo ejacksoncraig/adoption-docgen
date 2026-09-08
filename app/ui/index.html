@@ -198,6 +198,19 @@
   .field.bool > label { margin: 0; }
   .field[hidden] { display: none; }
 
+  /* ---- searchable select: a text box with a filtered list beneath it ---- */
+  .field.combo { position: relative; }
+  .combo-list {
+    position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; z-index: 30;
+    background: #fff; border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; padding: 4px;
+  }
+  .combo-option { padding: 7px 10px; border-radius: var(--r-sm); font-size: 14px; cursor: pointer; }
+  .combo-option:hover, .combo-option.active { background: var(--accent-wash); }
+  .combo-empty, .combo-more {
+    padding: 7px 10px; font-size: 12.5px; color: var(--ink-faint); font-style: italic;
+  }
+
   /* ---- office details, reached from the rail rather than the numbered steps ---- */
   .railaux { padding: 0 12px 4px; }
   .railaux button {
@@ -1053,6 +1066,11 @@ function renderForm() {
   applyDependencies();
 }
 
+//: How many matches a search shows before asking for a narrower query. Oklahoma
+//: has 77 counties; listing all of them the moment a letter is typed would
+//: defeat the point of searching.
+const COMBO_LIMIT = 8;
+
 function renderField(field) {
   const wrap = el("div", { className: "field" + (field.type === "bool" ? " bool" : ""), id: "field-" + field.id });
   wrap.dataset.field = field.id;
@@ -1064,6 +1082,17 @@ function renderField(field) {
   // An answer the client gave is worth marking: it tells staff which boxes are
   // theirs to fill, and which ones to read back against what the client sent.
   if (state.fromClient && state.fromClient.has(field.id)) label.append(el("span", { className: "src", textContent: "from client" }));
+
+  if (field.type === "select" && field.searchable) {
+    // A long option list is faster to reach by typing than by scrolling a
+    // native <select>. This is hand-built rather than the HTML5 <datalist>
+    // element: datalist's live-filtering behaviour is inconsistent between
+    // the WebKit view this app runs in on a Mac and the Chromium view it runs
+    // in on Windows — checked on this Mac, where the suggestion list showed
+    // all 77 counties regardless of what was typed, which is the opposite of
+    // the point. A few dozen lines here behave identically everywhere instead.
+    return renderSearchableSelect(field, wrap, label);
+  }
 
   let input;
   if (field.type === "select") {
@@ -1099,6 +1128,104 @@ function renderField(field) {
     wrap.append(label, input);
     if (field.help) wrap.append(el("p", { className: "help", textContent: field.help }));
   }
+  return wrap;
+}
+
+/** A text box with a filtered dropdown beneath it, for a select field whose
+ * option list is too long to scroll comfortably. Still answers with one of
+ * field.options exactly, the same as a plain <select> — typing something that
+ * matches nothing is caught at Review like any other wrong answer, not here;
+ * this widget's only job is getting to the right option faster. */
+function renderSearchableSelect(field, wrap, label) {
+  const input = el("input", {
+    type: "text", id: "input-" + field.id, name: field.id,
+    autocomplete: "off", placeholder: "Type to search…",
+  });
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-autocomplete", "list");
+
+  const list = el("div", { className: "combo-list" });
+  list.hidden = true;
+  let shown = [];
+  let active = -1;
+
+  const current = state.values[field.id];
+  if (current !== undefined && current !== null) input.value = current;
+
+  function close() {
+    list.hidden = true;
+    list.replaceChildren();
+    input.setAttribute("aria-expanded", "false");
+    active = -1;
+  }
+
+  function highlight(index) {
+    const rows = [...list.querySelectorAll(".combo-option")];
+    rows.forEach((row, i) => row.classList.toggle("active", i === index));
+    active = index;
+    if (index >= 0) rows[index].scrollIntoView({ block: "nearest" });
+  }
+
+  function choose(value) {
+    input.value = value;
+    state.values[field.id] = value;
+    wrap.classList.remove("missing");
+    close();
+    updateProgress();
+    updateTestDataButton();
+  }
+
+  function open() {
+    const query = input.value.trim().toLowerCase();
+    const matches = query ? field.options.filter((o) => o.toLowerCase().includes(query)) : field.options;
+    shown = matches.slice(0, COMBO_LIMIT);
+    list.replaceChildren();
+    if (!matches.length) {
+      list.append(el("div", { className: "combo-empty", textContent: "No county matches that." }));
+    } else {
+      for (const option of shown) {
+        const row = el("div", { className: "combo-option", textContent: option });
+        // mousedown, not click: it fires before the input's blur, so a
+        // selection registers before blur would otherwise close this list.
+        row.addEventListener("mousedown", (event) => { event.preventDefault(); choose(option); });
+        list.append(row);
+      }
+      if (matches.length > shown.length) {
+        list.append(el("div", { className: "combo-more", textContent: `${matches.length - shown.length} more — keep typing` }));
+      }
+    }
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    active = -1;
+  }
+
+  input.addEventListener("input", () => {
+    state.values[field.id] = input.value;
+    wrap.classList.remove("missing");
+    updateProgress();
+    updateTestDataButton();
+    open();
+  });
+  input.addEventListener("focus", open);
+  input.addEventListener("blur", close);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (list.hidden) open(); else highlight(Math.min(active + 1, shown.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      highlight(Math.max(active - 1, 0));
+    } else if (event.key === "Enter") {
+      if (!list.hidden && active >= 0) { event.preventDefault(); choose(shown[active]); }
+    } else if (event.key === "Escape") {
+      close();
+    }
+  });
+
+  wrap.classList.add("combo");
+  wrap.append(label, input, list);
+  if (field.help) wrap.append(el("p", { className: "help", textContent: field.help }));
   return wrap;
 }
 
