@@ -93,8 +93,8 @@ def test_a_tribe_outside_the_known_list_still_generates_a_notice(registry, tmp_p
 
 def test_single_child_caption_reads_in_the_singular(registry, tmp_path, today):
     text = render(registry, fixtures.BASE, tmp_path, today, template=NOTICE)
-    assert "A Minor Child." in text
-    assert "Minor Children." not in text
+    assert "A MINOR CHILD" in text
+    assert "MINOR CHILDREN" not in text
     assert "is a member of the Sample Nation" in text
     assert "And" not in text.split("NOTICE TO TRIBE")[0]
 
@@ -113,10 +113,11 @@ def test_two_children_share_one_notice_in_the_plural(registry, tmp_path, today):
         "name_change_child2": False,
     }
     text = render(registry, values, tmp_path, today, template=NOTICE, variant="dhs_1p_2c")
-    assert "Minor Children." in text
-    assert "A Minor Child." not in text
+    assert "MINOR CHILDREN" in text
+    assert "A MINOR CHILD" not in text
     assert "SAMPLE CHILD" in text and "SAMPLE CHILD TWO" in text
     assert "are members of the Sample Nation" in text
+    assert 'are each an "Indian Child"' in text
 
 
 # --------------------------------------------------------------------------
@@ -204,24 +205,108 @@ def test_the_mailing_date_is_filled_in_when_it_is_known(registry, tmp_path, toda
 # --------------------------------------------------------------------------
 
 
-#: 3 inches, in twentieths of a point — what Word writes for a 3" left indent.
-THREE_INCHES = 4320
+#: Where the office put the signature block: the "By____" line at 3 inches, the
+#: name and address beneath it a quarter-inch further in, so the text sits under
+#: the signature line rather than under the word "By".
+SIGNATURE_LINE = Inches(3)
+SIGNATURE_BLOCK = Inches(3.25)
 
 
-def test_both_signature_blocks_are_indented_three_inches(registry, tmp_path, today):
+def _notice_document(registry, tmp_path, today, values=None, variant="dhs_1p_1c"):
     result = engine.generate(
-        registry, "dhs", "dhs_1p_1c", fixtures.BASE, today=today, output_root=tmp_path
+        registry, "dhs", variant, values or fixtures.BASE,
+        today=today, output_root=tmp_path,
     )
     notice = next(f for f in result.files if f.template.endswith(NOTICE))
-    document = docx.Document(str(notice.path))
+    return docx.Document(str(notice.path))
 
-    signature_lines = [
-        p for p in document.paragraphs
-        if p.text.strip().startswith(("By____", "Attorney for Petitioner"))
-        or "OBA #" in p.text
-    ]
+
+def test_both_signature_blocks_sit_on_the_right(registry, tmp_path, today):
+    document = _notice_document(registry, tmp_path, today)
+
+    by_lines, block_lines = [], []
+    for paragraph in document.paragraphs:
+        text = paragraph.text.strip()
+        if text.startswith("By____"):
+            by_lines.append(paragraph)
+        elif text.startswith(("Attorney for Petitioner", "P. O. Box", "Wagoner, OK")) or "OBA #" in text:
+            block_lines.append(paragraph)
+
     # Two blocks: one under the notice, one under the certificate of service.
-    assert len(signature_lines) == 6
-    for paragraph in signature_lines:
-        assert paragraph.paragraph_format.left_indent == Inches(3), paragraph.text
-        assert paragraph.paragraph_format.left_indent.twips == THREE_INCHES
+    assert len(by_lines) == 2
+    assert len(block_lines) == 8
+    for paragraph in by_lines:
+        assert paragraph.paragraph_format.left_indent == SIGNATURE_LINE, paragraph.text
+    for paragraph in block_lines:
+        assert paragraph.paragraph_format.left_indent == SIGNATURE_BLOCK, paragraph.text
+
+
+# --------------------------------------------------------------------------
+# the caption the office formatted by hand
+# --------------------------------------------------------------------------
+
+
+def test_the_caption_puts_every_parenthesis_in_one_column(registry, tmp_path, today):
+    """The caption is drawn with tabs against Word's default half-inch stops, so
+    that the ")" on every line lands at 5040 twips and reads as a vertical rule.
+
+    These tab counts are the drawing. They were measured against this caption's
+    own wording, so changing the wording means re-counting them — hence pinning
+    them here rather than only eyeballing the rendered page."""
+    document = _notice_document(registry, tmp_path, today)
+    caption = [p for p in document.paragraphs
+               if p.style is not None and p.style.name == "No Spacing"]
+
+    # Five lines, twice over: page 1, then the certificate of service.
+    assert len(caption) == 10
+    tabs_before_the_parenthesis = [p.text.split(")")[0].count("\t") for p in caption]
+    assert tabs_before_the_parenthesis == [1, 7, 3, 7, 5] * 2
+    for paragraph in caption:
+        assert paragraph.text.count(")") == 1, paragraph.text
+
+
+def test_the_caption_names_the_case_once_and_the_child_in_capitals(registry, tmp_path, today):
+    text = render(registry, fixtures.BASE, tmp_path, today, template=NOTICE)
+    assert "IN THE MATTER OF THE ADOPTION OF:" in text
+    assert "SAMPLE CHILD\t\tDOB:  3/2/2015\t)\tCase No.  FA-2026-_____" in text
+
+
+def test_a_second_child_is_added_to_the_caption_without_moving_the_column(
+    registry, tmp_path, today
+):
+    values = {
+        **fixtures.BASE,
+        "child2_name": "SAMPLE CHILD TWO",
+        "child2_dob": "2016-02-15",
+        "child2_race": "Caucasian",
+        "child2_gender": "female",
+        "child2_birth_place": "Sample Regional Hospital",
+        "child2_birth_city": "Sampletown",
+        "child2_birth_county": "Sample",
+        "child2_birth_state": "Oklahoma",
+        "name_change_child2": False,
+    }
+    document = _notice_document(registry, tmp_path, today, values, variant="dhs_1p_2c")
+    caption = [p for p in document.paragraphs
+               if p.style is not None and p.style.name == "No Spacing"]
+
+    # Seven lines now: the "And" and the second child sit between the two spacers.
+    assert len(caption) == 14
+    assert [p.text.split(")")[0].count("\t") for p in caption] == [1, 7, 3, 7, 3, 7, 5] * 2
+
+
+# --------------------------------------------------------------------------
+# the three address blocks agree
+# --------------------------------------------------------------------------
+
+
+def test_every_address_block_carries_the_same_four_lines(registry, tmp_path, today):
+    """The notice addresses the tribe three times — once at the top, twice in the
+    certificate of service, the latter two inside layout tables. All three carry
+    the department line; one lost it when the table was first typed up."""
+    text = render(registry, fixtures.values(tribe="Cherokee Nation"), tmp_path, today,
+                  template=NOTICE)
+    for line in ("ICW Adoptions", "P.O. Box 948", "Tahlequah, OK 74465"):
+        assert text.count(line) == 3, f"{line!r} appears {text.count(line)} times, expected 3"
+    # The tribe's name also appears in the paragraph that states membership.
+    assert text.count("Cherokee Nation") == 4

@@ -205,6 +205,45 @@ city/state/ZIP) — the tribe name itself already prints from `{{ tribe }}`, so
 it does not need its own branch. All three lines must test the exact same
 string. There is no Python change involved.
 
+### How this template was authored
+
+Unlike the others, `notice_to_tribe.docx` was not tokenized from the office's
+original Word file. It was rebuilt from a *generated* notice that the office had
+edited in Word until the page looked right — line spacing, the caption's column
+of parentheses, which headings are bold and which are underlined, and two layout
+tables in the certificate of service. Replaying that many formatting decisions
+onto the old template would have been guesswork, so the edited document became
+the new base and the tokens were put back into it.
+
+Do the same thing again if the layout needs another pass: generate a notice,
+edit it in Word until it is right, and re-tokenize. Trying to hand-patch the
+paragraph properties is how the caption's tab counts get broken.
+
+Two things about that document differ from what the office typed, on purpose:
+
+- The certificate's first address block had lost its department line ("ICW
+  Adoptions") when it was retyped into a table, while the other two blocks kept
+  it. All three now print the same four lines from the same conditionals.
+- Paragraph 2 read "The children are an \"Indian Child\"" in the plural. It now
+  reads "are each an \"Indian Child\"".
+
+### The caption is drawn with tabs
+
+The column of parentheses is not a table. Each caption line is tabbed out against
+Word's default half-inch stops so the ")" lands at 5040 twips, with the case
+number one stop further at 5760. The tab counts — 1, 7, 3, 7, 5 down the page —
+were measured against this caption's own wording and are pinned by
+`test_the_caption_puts_every_parenthesis_in_one_column`.
+
+The consequence worth knowing: the child's name has to fit inside the first stop
+it tabs away from, about 1.5 inches, or roughly 18 capital letters. A longer name
+pushes its line's tab onto the next stop and that one ")" steps out of the
+column. Nothing else breaks — no value is wrong, the notice is still correct and
+still serves — but the caption stops looking straight. Giving those paragraphs
+explicit tab stops instead of relying on the default ones would make it immune;
+it has not been done because the office formatted this caption by hand and the
+default-stop version is what they approved.
+
 ### What the notice asks for that nothing else does
 
 Four fields in the `icwa` group exist only for this document, and all four are
@@ -352,7 +391,9 @@ matter, the correct address for each of the five known tribes plus the
 fallback for one that is not, singular/plural for one child versus two, ¶1 and
 the certificate of service both blank and filled in, the birth parents named
 from `bio_parents` in a DHS filing and from the petitioner plus `stepparent` in
-a step-parent one, and both signature blocks at a 3" indent.
+a step-parent one, the signature blocks at their 3" and 3.25" indents, the
+caption's tab counts for one child and for two, and all three address blocks
+printing the same four lines.
 The remaining templates — `dhs_petition_decree_2p_1c`,
 `dhs_petition_1p_2c`, `dhs_petition_2p_2c`, `dhs_packet`, `step_packet` — are
 only covered by the smoke check that they render at all with no placeholder left
