@@ -178,7 +178,7 @@ A document entry in `matters.json` can name a bool field it depends on:
   "output_name": "4 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
   "status": "ready",
   "depends_on": "icwa_applies",
-  "field_groups": ["petitioner2", "child2"] }
+  "field_groups": ["petitioner2", "child2", "stepparent"] }
 ```
 
 `app/engine.py::generate()` (and `Api.review` in `app/main.py`, so the preview
@@ -204,6 +204,28 @@ each of the three address lines in the template (department, street/PO box,
 city/state/ZIP) — the tribe name itself already prints from `{{ tribe }}`, so
 it does not need its own branch. All three lines must test the exact same
 string. There is no Python change involved.
+
+### What the notice asks for that nothing else does
+
+Four fields in the `icwa` group exist only for this document, and all four are
+optional, because a notice is usually drafted before the hearing is set and
+always before it is mailed:
+
+| Field | Fills |
+|---|---|
+| `petition_hearing_date` | ¶1, "will be heard on the 18th day of June, 2026" |
+| `courthouse_city` | ¶1, "in the District Courthouse at Newkirk, Kay County" |
+| `judge_name` | ¶1, "before the Honorable Judge …" |
+| `notice_mailing_date` | the Certificate of Service, "on the 4th day of May, 2026" |
+
+Each has a `default` of the underscores the office's own form prints, so leaving
+one blank gives back the line to fill in by hand rather than a gap. `judge_name`
+is the one that is often left blank on purpose; the other three are worth asking
+for. `courthouse_city` is asked rather than derived from `county` because a
+county seat is not the county's name — Kay County's courthouse is in Newkirk.
+
+All four are marked `"questionnaire": false`. They are the office's to answer,
+not the adoptive family's.
 
 ## The office's own details
 
@@ -313,9 +335,12 @@ Nothing else needs changing when a new one is finished — drop the `.docx` into
 Note the folder matters: `matters.json` referring to `stepparent/step_packet.docx`
 means the file must be in `templates/stepparent/`, not `templates/dhs/`. One
 template can be shared by more than one matter — `noticetotribes/notice_to_tribe.docx`
-is a `common_document` of both `dhs` and `stepparent` — as long as it only
-reaches for fields both matters' variants actually collect (it does not use
-`bio_parents`, which only DHS variants have).
+is a `common_document` of both `dhs` and `stepparent`. Where the two matters hold
+the same fact under different names, it names both groups as optional and asks
+for each in turn: ¶3 wants the birth parents, which DHS keeps in `bio_parents`
+and a step-parent matter splits between petitioner 1 and `stepparent`. So the
+DHS entry lists `stepparent` as an extra group and the step-parent entry lists
+`bio_parents`, and the paragraph guards both.
 
 ## Coverage as it stands
 
@@ -324,7 +349,10 @@ step-parent petitions have per-branch assertions for all three consent bases and
 both parents. `notice_to_tribe` has per-branch assertions in
 `tests/test_notice_to_tribe.py`: generated only when ICWA applies, for either
 matter, the correct address for each of the five known tribes plus the
-fallback for one that is not, and singular/plural for one child versus two.
+fallback for one that is not, singular/plural for one child versus two, ¶1 and
+the certificate of service both blank and filled in, the birth parents named
+from `bio_parents` in a DHS filing and from the petitioner plus `stepparent` in
+a step-parent one, and both signature blocks at a 3" indent.
 The remaining templates — `dhs_petition_decree_2p_1c`,
 `dhs_petition_1p_2c`, `dhs_petition_2p_2c`, `dhs_packet`, `step_packet` — are
 only covered by the smoke check that they render at all with no placeholder left

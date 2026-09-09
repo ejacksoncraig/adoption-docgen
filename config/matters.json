@@ -70,7 +70,7 @@
           "output_name": "4 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
           "status": "ready",
           "depends_on": "icwa_applies",
-          "field_groups": ["petitioner2", "child2"] }
+          "field_groups": ["petitioner2", "child2", "stepparent"] }
       ]
     },
 
@@ -112,7 +112,7 @@
           "output_name": "3 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
           "status": "ready",
           "depends_on": "icwa_applies",
-          "field_groups": ["child2"] }
+          "field_groups": ["child2", "bio_parents"] }
       ]
     }
   ]
