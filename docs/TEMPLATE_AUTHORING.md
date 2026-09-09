@@ -132,6 +132,37 @@ A single field can opt out the same way, when the rest of its group does belong
 on the questionnaire. `attorney_fees_summary` sits in the `dhs` group — the
 family answers the rest of that group, but not the fee schedule.
 
+## Where a numbered allegation sits on the page
+
+The office's originals put the number hard against the left margin and let one
+tab carry the text to the first half-inch stop:
+
+```
+1.<tab>That the Petitioner has been a resident of Wagoner County ...
+```
+
+first-line indent **0**, not 1". Converting the `.doc` files gave every numbered
+paragraph a 1" first-line indent, which put the number an inch in and its text
+half an inch further again — across all ten templates, 127 paragraphs. Restored
+to 0, and pinned by `test_numbered_allegations_start_at_the_left_margin` in
+`tests/test_all_variants.py`, which reads the templates themselves rather than a
+render, because a re-converted template would drift back out to the right and
+nothing about the *values* would be wrong.
+
+The one exception is a sub-list. The notice's numbered rights sit under the
+"PURSUANT TO 10 O.S. §40.4" heading and are a level further in — number at 0.5",
+text at 1" — in the original too, so they keep a first-line indent of 720:
+
+```
+    1.<tab>The biological parents, Indian custodians, and/or the child's Tribe ...
+```
+
+Prose paragraphs — "Comes now …", "WHEREFORE, premises considered …" — still
+carry the converted 1" first-line indent. The notice's original uses 0.5" for
+its prose, so the rest are probably a half-inch out too, but the other originals
+are not in the tree to check against and nobody has asked. If that gets fixed,
+fix it the same way: read the original, do not guess.
+
 ## One document filed in several variants
 
 The DHS consent is filed in every DHS adoption, but it names a second petitioner

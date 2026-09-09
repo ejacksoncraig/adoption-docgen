@@ -13,6 +13,7 @@ tests/test_stepparent.py.
 from __future__ import annotations
 
 import collections
+import re
 import zipfile
 
 import pytest
@@ -95,3 +96,69 @@ def test_placeholder_answers_satisfy_every_variant(registry):
             values = intake.sample_values(registry.schema, groups, truthy=truthy)
             assert registry.schema.missing_required(values, groups) == [], f"{variant_id} (truthy={truthy})"
             assert registry.schema.validate(values, groups) == [], f"{variant_id} (truthy={truthy})"
+
+
+# --------------------------------------------------------------------------
+# where the numbered allegations sit on the page
+# --------------------------------------------------------------------------
+#
+# Converting the office's .doc originals left every numbered paragraph with a 1"
+# first-line indent, so the number sat an inch in and its text half an inch
+# further again. The originals put the number hard against the left margin and
+# let one tab carry the text to the first half-inch stop. This is a whole-page
+# defect rather than a wrong value, so nothing else in the suite would catch it
+# coming back — a re-converted template would simply drift out to the right.
+
+PARAGRAPH = re.compile(r'<w:p\b(?:(?!</w:p>).)*?</w:p>', re.S)
+FIRST_LINE = re.compile(r'<w:ind[^>]*w:firstLine="(\d+)"[^>]*/>')
+
+#: The notice's rights list is a sub-list under "PURSUANT TO 10 O.S. §40.4" and
+#: is a level further in than the allegations above it — number at 0.5", text at
+#: 1". Its original does the same, so it is allowed rather than flattened.
+SUB_LIST_INDENT = "720"
+
+
+def paragraph_content(block: str) -> str:
+    """Text and tabs in document order. A <w:tab/> is not a <w:t>."""
+    return "".join(
+        "\t" if m.group(0).startswith("<w:tab") else m.group(1)
+        for m in re.finditer(r'<w:tab\s*/>|<w:t(?:\s[^>]*)?>(.*?)</w:t>', block, re.S)
+    )
+
+
+def numbered_paragraphs(path):
+    """Every "1.<tab>..." paragraph in a template, with its first-line indent."""
+    xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+    for block in PARAGRAPH.findall(xml):
+        text = paragraph_content(block)
+        if not re.match(r"\d+\.\t", text):
+            continue
+        indent = FIRST_LINE.search(block)
+        yield (indent.group(1) if indent else "0"), text
+
+
+def template_paths(registry):
+    seen = {
+        registry.template_path(doc.template)
+        for matter in registry.matters
+        for variant in matter.variants
+        for doc in variant.all_documents()
+    }
+    return sorted(seen)
+
+
+def test_numbered_allegations_start_at_the_left_margin(registry):
+    offenders = []
+    for path in template_paths(registry):
+        for indent, text in numbered_paragraphs(path):
+            if indent not in ("0", SUB_LIST_INDENT):
+                offenders.append(f"{path.name}: first-line {indent} on {text[:50]!r}")
+    assert not offenders, "numbered paragraphs indented off the margin:\n" + "\n".join(offenders)
+
+
+def test_every_template_has_numbered_paragraphs_to_check(registry):
+    """Guards the guard: if the "1.<tab>" shape ever changes, the test above
+    would pass by finding nothing rather than by finding it correct."""
+    counted = {path.name: len(list(numbered_paragraphs(path)))
+               for path in template_paths(registry)}
+    assert all(counted.values()), f"no numbered paragraphs found in: {counted}"
