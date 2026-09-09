@@ -30,7 +30,7 @@ from app.registry import (
     settings_path,
     write_settings,
 )
-from app.schema import ConfigError, IntakeError
+from app.schema import ConfigError, IntakeError, as_bool
 
 WINDOW_TITLE = "Adoption Filing Generator"
 
@@ -160,19 +160,24 @@ class Api:
         missing = schema.missing_required(values, variant.field_groups)
         problems = schema.validate(values, variant.field_groups, include_required=False)
 
+        applicable_docs = [
+            doc for doc in variant.all_documents()
+            if doc.depends_on is None or as_bool(values.get(doc.depends_on))
+        ]
+
         documents: list[str] = []
         if not problems:
             context = schema.build_context(
                 values, variant.field_groups, self.registry.settings, allow_missing=True
             )
-            for doc in variant.all_documents():
+            for doc in applicable_docs:
                 try:
                     name = engine.resolve_output_name(doc, context)
                 except engine.RenderError:
                     name = doc.output_name
                 documents.append((engine.DRAFT_PREFIX if missing else "") + name)
         else:
-            documents = [doc.output_name for doc in variant.all_documents()]
+            documents = [doc.output_name for doc in applicable_docs]
 
         return {
             "ok": True,

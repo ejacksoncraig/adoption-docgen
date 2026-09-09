@@ -163,6 +163,48 @@ Use this only for values that are genuinely optional in that document. If a
 template needs a value in every case, add the group to the variant's own
 `field_groups` instead, so the form asks for it.
 
+## A document that is not always filed
+
+Most documents in a filing are guarded *inside* the template — ICWA off prints
+a different paragraph, but the document itself is still generated. The Notice
+to Tribe is different: when ICWA does not apply there is nothing for it to
+say, so it should not be generated at all rather than rendered with blank or
+inapplicable content.
+
+A document entry in `matters.json` can name a bool field it depends on:
+
+```json
+{ "template": "noticetotribes/notice_to_tribe.docx",
+  "output_name": "4 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
+  "status": "ready",
+  "depends_on": "icwa_applies",
+  "field_groups": ["petitioner2", "child2"] }
+```
+
+`app/engine.py::generate()` (and `Api.review` in `app/main.py`, so the preview
+screen agrees with what actually gets written) drop the document from the plan
+entirely when that field is falsy in the intake values — it never appears in
+the output folder and is never asked to guard its own variables. Use this only
+when a document has nothing to say when the condition is off; if it merely
+reads differently, guard the paragraph with `{% if %}` instead and keep
+generating the document.
+
+## Adding another tribe to the Notice to Tribe
+
+`templates/noticetotribes/notice_to_tribe.docx` prints the correct tribal ICW
+office address automatically, matched against the `tribe` field's exact text.
+Five tribes are wired up: Cherokee Nation, Chickasaw Nation, Choctaw Nation of
+Oklahoma, Muscogee (Creek) Nation, and Citizen Potawatomi Nation. A `tribe`
+value that matches none of them still produces a notice — the office name
+prints as typed, and the address block prints a bracketed reminder to fill it
+in by hand rather than guessing.
+
+To wire up another tribe, add one more `{% elif tribe == "..." %}` branch to
+each of the three address lines in the template (department, street/PO box,
+city/state/ZIP) — the tribe name itself already prints from `{{ tribe }}`, so
+it does not need its own branch. All three lines must test the exact same
+string. There is no Python change involved.
+
 ## The office's own details
 
 The attorney signature block does not belong on the intake form — it is the same
@@ -263,19 +305,27 @@ Outstanding:
 
 ## Templates still to write
 
-All nine templates named in `config/matters.json` now exist and all six variants
-are `"status": "ready"`. `python -m app.cli check` lists anything still pending.
+All templates named in `config/matters.json` now exist and all six variants are
+`"status": "ready"`. `python -m app.cli check` lists anything still pending.
 Nothing else needs changing when a new one is finished — drop the `.docx` into
 `templates/<matter>/`, register it, and set `"status": "ready"`.
 
 Note the folder matters: `matters.json` referring to `stepparent/step_packet.docx`
-means the file must be in `templates/stepparent/`, not `templates/dhs/`.
+means the file must be in `templates/stepparent/`, not `templates/dhs/`. One
+template can be shared by more than one matter — `noticetotribes/notice_to_tribe.docx`
+is a `common_document` of both `dhs` and `stepparent` — as long as it only
+reaches for fields both matters' variants actually collect (it does not use
+`bio_parents`, which only DHS variants have).
 
 ## Coverage as it stands
 
 `dhs_petition_decree_1p_1c` has a golden file and per-branch assertions. The
 step-parent petitions have per-branch assertions for all three consent bases and
-both parents. The remaining templates — `dhs_petition_decree_2p_1c`,
+both parents. `notice_to_tribe` has per-branch assertions in
+`tests/test_notice_to_tribe.py`: generated only when ICWA applies, for either
+matter, the correct address for each of the five known tribes plus the
+fallback for one that is not, and singular/plural for one child versus two.
+The remaining templates — `dhs_petition_decree_2p_1c`,
 `dhs_petition_1p_2c`, `dhs_petition_2p_2c`, `dhs_packet`, `step_packet` — are
 only covered by the smoke check that they render at all with no placeholder left
 behind. Add branch assertions to those before they are relied on for a real

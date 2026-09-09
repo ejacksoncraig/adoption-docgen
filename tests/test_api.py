@@ -49,7 +49,15 @@ def test_review_of_a_complete_form_shows_the_resolved_file_names(api):
     res = api.review({"matter": PILOT_MATTER, "variant": PILOT_VARIANT, "values": fixtures.BASE})
     assert res["ok"] and res["missing"] == [] and res["problems"] == []
     assert "1 Petition and Decree - SAMPLE CHILD.docx" in res["documents"]
-    # the matter's common documents are listed too, so staff see the whole filing
+    # the matter's common documents are listed too, so staff see the whole filing —
+    # BASE answers ICWA Yes, so the Notice to Tribe is one of the four.
+    assert len(res["documents"]) == 4
+
+
+def test_review_omits_the_notice_to_tribe_when_icwa_does_not_apply(api):
+    res = api.review({"matter": PILOT_MATTER, "variant": PILOT_VARIANT, "values": fixtures.ALTERNATE})
+    assert res["ok"] and res["missing"] == [] and res["problems"] == []
+    assert not any("Notice to Tribe" in name for name in res["documents"])
     assert len(res["documents"]) == 3
 
 

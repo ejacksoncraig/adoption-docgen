@@ -48,7 +48,10 @@ def draft_text(draft):
 
 
 def test_a_part_finished_intake_still_produces_documents(draft, registry):
-    expected = len(registry.variant(PILOT_MATTER, PILOT_VARIANT).all_documents())
+    """STARTED answers ICWA No, so the Notice to Tribe is one of the documents
+    this variant *could* produce but does not here — same as any other
+    conditional document, not a gap."""
+    expected = len(registry.variant(PILOT_MATTER, PILOT_VARIANT).all_documents()) - 1
     assert len(draft.files) == expected
     assert all(f.path.exists() for f in draft.files)
 

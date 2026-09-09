@@ -31,6 +31,7 @@ from docxtpl import DocxTemplate
 from jinja2 import UndefinedError
 
 from app.registry import OUTPUT_DIR, Document, Registry, jinja_env, string_variables, template_variables
+from app.schema import as_bool
 
 #: Strings that must never survive into a generated document.
 FORBIDDEN = ("XXX", "{{", "{%", "}}", "%}")
@@ -339,7 +340,10 @@ def generate(
     """
     today = today or date.today()
     variant = registry.variant(matter_id, variant_id)
-    documents = variant.all_documents()
+    documents = [
+        d for d in variant.all_documents()
+        if d.depends_on is None or as_bool(values.get(d.depends_on))
+    ]
     if not documents:
         raise RenderError([f"variant {variant_id} has no ready templates to generate"])
 

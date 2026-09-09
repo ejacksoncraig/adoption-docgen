@@ -132,8 +132,10 @@
     { "id": "icwa_applies", "group": "icwa", "type": "bool", "label": "Does ICWA apply?", "required": true,
       "help": "Selects between the ICWA and non-ICWA versions of the relevant paragraphs in both the Petition and the Decree." },
     { "id": "tribe", "group": "icwa", "type": "text", "label": "Tribe",
-      "required": false, "depends_on": "icwa_applies",
-      "help": "Full name as it should appear, e.g. Cherokee Nation." },
+      "required": false, "depends_on": "icwa_applies", "searchable": true,
+      "options": ["Cherokee Nation", "Chickasaw Nation", "Choctaw Nation of Oklahoma",
+                   "Muscogee (Creek) Nation", "Citizen Potawatomi Nation"],
+      "help": "Pick one of these five and the Notice to Tribe fills in that tribe's ICW office address automatically. Any other tribe can still be typed in — the notice still generates, just without a pre-filled address." },
 
     { "id": "other_parent_name", "group": "stepparent", "type": "text", "label": "Other biological parent's name",
       "required": true, "help": "The non-petitioner biological parent — used only in step-parent matters." },

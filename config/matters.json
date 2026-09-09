@@ -65,7 +65,12 @@
         { "template": "dhs/dhs_packet.docx",
           "output_name": "3 Filing Packet - {{ child1_name }}.docx",
           "status": "ready",
-          "field_groups": ["case", "petitioner1", "child1"] }
+          "field_groups": ["case", "petitioner1", "child1"] },
+        { "template": "noticetotribes/notice_to_tribe.docx",
+          "output_name": "4 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
+          "status": "ready",
+          "depends_on": "icwa_applies",
+          "field_groups": ["petitioner2", "child2"] }
       ]
     },
 
@@ -102,7 +107,12 @@
         { "template": "stepparent/step_packet.docx",
           "output_name": "2 Filing Packet - {{ child1_name }}.docx",
           "status": "ready",
-          "field_groups": ["case", "petitioner1", "child1", "stepparent"] }
+          "field_groups": ["case", "petitioner1", "child1", "stepparent"] },
+        { "template": "noticetotribes/notice_to_tribe.docx",
+          "output_name": "3 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
+          "status": "ready",
+          "depends_on": "icwa_applies",
+          "field_groups": ["child2"] }
       ]
     }
   ]

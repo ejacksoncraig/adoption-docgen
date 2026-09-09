@@ -18,6 +18,7 @@ import zipfile
 import pytest
 
 from app import engine, intake
+from app.schema import as_bool
 
 TOKENS = ("XXX", "{{", "{%", "}}", "%}")
 
@@ -55,7 +56,10 @@ def test_every_variant_renders_cleanly(registry, tmp_path, today, truthy):
             failures.append(f"{matter_id}/{variant_id}: {exc}")
             continue
 
-        expected = len(variant.all_documents())
+        expected = len([
+            d for d in variant.all_documents()
+            if d.depends_on is None or as_bool(values.get(d.depends_on))
+        ])
         if len(result.files) != expected:
             failures.append(f"{variant_id}: wrote {len(result.files)} documents, expected {expected}")
 

@@ -1083,7 +1083,7 @@ function renderField(field) {
   // theirs to fill, and which ones to read back against what the client sent.
   if (state.fromClient && state.fromClient.has(field.id)) label.append(el("span", { className: "src", textContent: "from client" }));
 
-  if (field.type === "select" && field.searchable) {
+  if (field.searchable) {
     // A long option list is faster to reach by typing than by scrolling a
     // native <select>. This is hand-built rather than the HTML5 <datalist>
     // element: datalist's live-filtering behaviour is inconsistent between
@@ -1091,6 +1091,12 @@ function renderField(field) {
     // in on Windows — checked on this Mac, where the suggestion list showed
     // all 77 counties regardless of what was typed, which is the opposite of
     // the point. A few dozen lines here behave identically everywhere instead.
+    //
+    // Used for a plain "select" field (county — the answer must be one of the
+    // options) and equally for a "text" field that merely *suggests* options
+    // (tribe — pick one of the common five, or type a different one; nothing
+    // outside the list is rejected). Either way this widget just offers
+    // matches as the field's own options and lets the typed value stand.
     return renderSearchableSelect(field, wrap, label);
   }
 
@@ -1182,7 +1188,10 @@ function renderSearchableSelect(field, wrap, label) {
     shown = matches.slice(0, COMBO_LIMIT);
     list.replaceChildren();
     if (!matches.length) {
-      list.append(el("div", { className: "combo-empty", textContent: "No county matches that." }));
+      const message = field.type === "select"
+        ? `No ${field.label.toLowerCase()} matches that.`
+        : `No match — "${input.value.trim()}" will be used as typed.`;
+      list.append(el("div", { className: "combo-empty", textContent: message }));
     } else {
       for (const option of shown) {
         const row = el("div", { className: "combo-option", textContent: option });

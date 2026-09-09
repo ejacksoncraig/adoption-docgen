@@ -266,6 +266,12 @@ class Document:
     #: may be absent at generation time, so the template must guard it with
     #: ``{% if %}``; printing it unguarded still fails (see GuardedUndefined).
     extra_field_groups: tuple[str, ...] = ()
+    #: A bool field that must be true for this document to be generated at all —
+    #: the Notice to Tribe has nothing to say in a filing where ICWA does not
+    #: apply, so it is skipped rather than rendered with blank/inapplicable
+    #: content. Same name as a field's own ``depends_on``; checked against the
+    #: intake values at generation time, not against the rendered context.
+    depends_on: str | None = None
 
     @property
     def is_ready(self) -> bool:
@@ -561,6 +567,7 @@ def _document(raw: dict, where: str, problems: list[str]) -> Document | None:
         status=raw.get("status", "ready"),
         label=raw.get("label", ""),
         extra_field_groups=tuple(raw.get("field_groups", ())),
+        depends_on=raw.get("depends_on"),
     )
 
 
@@ -672,6 +679,25 @@ def _validate_templates(
                     )
                     continue
                 available = schema.ids_for_groups([*variant.field_groups, *doc.extra_field_groups])
+
+                if doc.depends_on is not None:
+                    gate = schema.fields.get(doc.depends_on)
+                    if gate is None:
+                        problems.append(
+                            f"matters.json: {doc.template} depends_on {doc.depends_on!r}, "
+                            f"which fields.json does not define"
+                        )
+                    elif gate.type != "bool":
+                        problems.append(
+                            f"matters.json: {doc.template} depends_on {doc.depends_on!r}, "
+                            f"which is not a bool field"
+                        )
+                    elif doc.depends_on not in available:
+                        problems.append(
+                            f"matters.json: {doc.template} depends_on {doc.depends_on!r} (group "
+                            f"'{gate.group}'), but variant {variant.id} only collects: "
+                            f"{', '.join(variant.field_groups)}"
+                        )
 
                 if not path.exists():
                     if ready:
