@@ -467,6 +467,15 @@
            combinations with a finished template are listed.</p>
       </div>
 
+      <div class="card" id="recentIntakesCard" hidden>
+        <h3>Recent intakes</h3>
+        <div class="body">
+          <select id="recentIntakeSelect">
+            <option value="">— choose a saved intake —</option>
+          </select>
+        </div>
+      </div>
+
       <div class="card">
         <h3>Adoption type</h3>
         <div class="body"><div class="choices" id="matterChoices"></div></div>
@@ -623,6 +632,7 @@ const state = {
   response: null,     // the client form being mapped, while the mapper is open
   attorneyConfigured: false,
   bootNotes: [],
+  savedIntakes: [],
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -1513,25 +1523,22 @@ async function saveIntake() {
   status("Saving intake…", true);
   const res = await call("save_intake", { matter: state.matter, variant: state.variant, values: state.values });
   if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not save", res.problems)); return; }
-  status(res.cancelled ? "Save cancelled." : "Intake saved to " + res.path);
+  if (res.cancelled) { status("Save cancelled."); return; }
+  status("Intake saved to " + res.path);
+
+  // So it shows up in "Recent intakes" without waiting for a restart.
+  state.savedIntakes = (state.savedIntakes || []).filter((entry) => entry.path !== res.path);
+  state.savedIntakes.unshift({
+    path: res.path, name: res.path.split(/[\\/]/).pop(),
+    matter: state.matter, variant: state.variant,
+    saved_at: new Date().toISOString(),
+  });
+  renderSavedIntakes();
 }
 
-async function openIntake() {
-  let res;
-  if (overHttp()) {
-    const file = await pickFile(".json,application/json");
-    if (!file) { status("Open cancelled."); return; }
-    status("Opening…", true);
-    const put = await uploadFile(file);
-    if (!put.ok) { showBootError("Could not read that file", put.problems); return; }
-    res = await call("load_intake", { path: put.path });
-  } else {
-    status("Opening…", true);
-    res = await call("choose_intake", {});
-  }
-  if (!res.ok) { showBootError("Could not open that file", res.problems); return; }
-  if (res.cancelled) { status("Open cancelled."); return; }
-
+/** Common tail of opening any saved intake, whichever way it was picked:
+ * the native file dialog, a browser upload, or the recent-intakes dropdown. */
+async function applyLoadedIntake(res) {
   state.matter = res.matter;
   state.variant = res.variant;
   renderMatters();
@@ -1551,6 +1558,67 @@ async function openIntake() {
 
   showStep("intake");
   status("Loaded " + res.path);
+}
+
+async function openIntake() {
+  let res;
+  if (overHttp()) {
+    const file = await pickFile(".json,application/json");
+    if (!file) { status("Open cancelled."); return; }
+    status("Opening…", true);
+    const put = await uploadFile(file);
+    if (!put.ok) { showBootError("Could not read that file", put.problems); return; }
+    res = await call("load_intake", { path: put.path });
+  } else {
+    status("Opening…", true);
+    res = await call("choose_intake", {});
+  }
+  if (!res.ok) { showBootError("Could not open that file", res.problems); return; }
+  if (res.cancelled) { status("Open cancelled."); return; }
+  await applyLoadedIntake(res);
+}
+
+/* ---------- recent intakes: the saved-intake list bootstrap already sends ---------- */
+
+/** "2026-09-09T14:35:22" -> "Sep 9, 2:35 PM" — short enough for a dropdown row. */
+function formatSavedAt(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+function matterVariantLabel(matterId, variantId) {
+  const matter = (state.catalog || []).find((m) => m.id === matterId);
+  const variant = matter && matter.variants.find((v) => v.id === variantId);
+  if (matter && variant) return `${matter.label} — ${variant.label}`;
+  return [matterId, variantId].filter(Boolean).join(" / ") || "Saved intake";
+}
+
+function renderSavedIntakes() {
+  const card = $("#recentIntakesCard");
+  const select = $("#recentIntakeSelect");
+  const saved = state.savedIntakes || [];
+  card.hidden = saved.length === 0;
+  if (saved.length === 0) return;
+
+  select.replaceChildren(el("option", { value: "", textContent: "— choose a saved intake —" }));
+  for (const entry of saved) {
+    const when = formatSavedAt(entry.saved_at);
+    const label = `${matterVariantLabel(entry.matter, entry.variant)}${when ? " — " + when : ""}`;
+    select.append(el("option", { value: entry.path, textContent: label }));
+  }
+}
+
+async function openRecentIntake(path) {
+  if (!path) return;
+  status("Opening…", true);
+  const res = await call("load_intake", { path });
+  if (!res.ok) { showBootError("Could not open that file", res.problems); $("#recentIntakeSelect").value = ""; return; }
+  await applyLoadedIntake(res);
+  $("#recentIntakeSelect").value = "";
 }
 
 /** Fill the form with a complete fake matter, for trying the program out. */
@@ -1614,6 +1682,7 @@ function wire() {
   $("#btnGenerate").addEventListener("click", generate);
   $("#btnSaveIntake").addEventListener("click", saveIntake);
   $("#btnLoadIntake").addEventListener("click", openIntake);
+  $("#recentIntakeSelect").addEventListener("change", (event) => openRecentIntake(event.target.value));
   $("#btnQuestionnaire").addEventListener("click", exportQuestionnaire);
   $("#btnRandom").addEventListener("click", fillWithTestData);
   $("#btnImportResponse").addEventListener("click", importResponse);
@@ -1659,6 +1728,9 @@ async function boot() {
   state.bootNotes = res.notes || [];
   markSettingsState();
   renderBootWarnings();
+
+  state.savedIntakes = res.saved_intakes || [];
+  renderSavedIntakes();
 
   // In a browser there is no native Save box; these write to their usual folder
   // and say where, so the label should not promise a dialog.
