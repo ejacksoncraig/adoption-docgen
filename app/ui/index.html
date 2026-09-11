@@ -211,6 +211,18 @@
     padding: 7px 10px; font-size: 12.5px; color: var(--ink-faint); font-style: italic;
   }
 
+  /* ---- the stored signature, shown on the office details screen ---- */
+  .signature-actions { display: flex; gap: 10px; }
+  .signature-shown {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 14px; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  }
+  /* A signature is dark ink on nothing. On a warm page that reads as ink on
+     paper, which is what it will look like in the document too. */
+  .signature-shown img { max-height: 46px; max-width: 240px; }
+  .signature-shown .meta { color: var(--muted); font-size: 13px; }
+
   /* ---- office details, reached from the rail rather than the numbered steps ---- */
   .railaux { padding: 0 12px 4px; }
   .railaux button {
@@ -536,6 +548,11 @@
             <input type="checkbox" id="optPdf">
             <span>Also export PDF <span class="hint" id="pdfHint"></span></span>
           </label>
+          <label class="checkline">
+            <input type="checkbox" id="optSign" checked>
+            <span>Place the attorney's signature
+              <span class="hint" id="signHint"></span></span>
+          </label>
         </div>
       </div>
 
@@ -570,6 +587,24 @@
             for a template that asks for them.
           </p>
           <div class="grid" id="settingsGrid"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Signature</h3>
+        <div class="body">
+          <p class="help" style="margin: 0 0 14px;">
+            A scan of the attorney's signature, uploaded once and printed on the
+            attorney's signature lines of every filing — not the petitioners' lines,
+            the notary's or the judge's. A PNG with a transparent background prints
+            best. Each filing can be generated without it from the Review screen.
+          </p>
+          <div id="signatureNotes"></div>
+          <div id="signatureState"></div>
+          <div class="signature-actions">
+            <button class="btn" id="btnChooseSignature">Upload a signature</button>
+            <button class="btn" id="btnRemoveSignature" hidden>Remove</button>
+          </div>
         </div>
       </div>
 
@@ -627,6 +662,7 @@ const state = {
   spec: null,
   values: {},
   pdfAvailable: false,
+  signature: { present: false },
   lastFolder: null,
   fromClient: null,   // ids answered by the client, when a form was imported
   response: null,     // the client form being mapped, while the mapper is open
@@ -852,7 +888,9 @@ async function openSettings() {
   $("#settingsPath").textContent = res.path;
   $("#settingsPath").title = res.path;
   $("#settingsNotes").replaceChildren();
+  $("#signatureNotes").replaceChildren();
   renderSettings(res.fields);
+  renderSignature(res.signature);
   showStep("settings");
 }
 
@@ -877,6 +915,91 @@ async function saveSettings() {
   markSettingsState();
   renderBootWarnings();
   status("Office details saved.");
+}
+
+/* ---------- the attorney's signature ---------- */
+
+function renderSignature(sig) {
+  state.signature = sig || { present: false };
+  const box = $("#signatureState");
+  box.replaceChildren();
+
+  if (!state.signature.present) {
+    box.append(el("p", { className: "help",
+      textContent: "No signature on file. Filings print the blank line to sign by hand." }));
+    $("#btnChooseSignature").textContent = "Upload a signature";
+    $("#btnRemoveSignature").hidden = true;
+  } else {
+    const shown = el("div", { className: "signature-shown" });
+    if (state.signature.preview) {
+      shown.append(el("img", { src: state.signature.preview, alt: "The stored signature" }));
+    }
+    shown.append(el("span", { className: "meta",
+      textContent: `${state.signature.name} · ${state.signature.pixels} · ${state.signature.kilobytes} KB` }));
+    box.append(shown);
+    $("#btnChooseSignature").textContent = "Replace";
+    $("#btnRemoveSignature").hidden = false;
+  }
+  markSignatureState();
+}
+
+/** Keep the Review screen's option honest about whether there is anything to place. */
+function markSignatureState() {
+  const present = !!(state.signature && state.signature.present);
+  const box = $("#optSign");
+  if (!box) return;
+  box.disabled = !present;
+  if (!present) box.checked = false;
+  $("#signHint").textContent = present
+    ? ""
+    : "— no signature has been uploaded yet; add one under Office details.";
+}
+
+async function chooseSignature() {
+  let res;
+  if (overHttp()) {
+    const file = await pickFile("image/png,image/jpeg,image/gif,image/bmp,image/tiff");
+    if (!file) { status("Upload cancelled."); return; }
+    status("Reading the signature…", true);
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    res = await call("save_signature", { data: btoa(binary) });
+  } else {
+    status("Choosing a signature…", true);
+    res = await call("choose_signature", {});
+  }
+
+  if (!res.ok) {
+    $("#signatureNotes").replaceChildren(
+      noteBox("error", "That image was not saved", res.problems));
+    status("The signature was not saved.");
+    return;
+  }
+  if (res.cancelled) { status("Upload cancelled."); return; }
+
+  $("#signatureNotes").replaceChildren(
+    noteBox("ok", "Saved. Filings generated from now on can carry it.", []));
+  renderSignature(res.signature);
+  status("Signature saved.");
+}
+
+async function removeSignature() {
+  status("Removing the signature…", true);
+  const res = await call("remove_signature", {});
+  if (!res.ok) {
+    $("#signatureNotes").replaceChildren(
+      noteBox("error", "Could not remove it", res.problems));
+    return;
+  }
+  $("#signatureNotes").replaceChildren(
+    noteBox("ok", "Removed. Signature lines print blank again.", []));
+  renderSignature(res.signature);
+  status("Signature removed.");
 }
 
 function markSettingsState() {
@@ -1311,7 +1434,8 @@ async function generate() {
   $("#result").replaceChildren();
 
   const res = await call("generate", {
-    matter: state.matter, variant: state.variant, values: state.values, pdf: $("#optPdf").checked,
+    matter: state.matter, variant: state.variant, values: state.values,
+    pdf: $("#optPdf").checked, sign: $("#optSign").checked,
   });
 
   const host = $("#result");
@@ -1678,6 +1802,8 @@ function wire() {
     if (folder) call("open_folder", { path: folder });
   });
   $("#btnSettingsBack").addEventListener("click", () => showStep(lastStep));
+  $("#btnChooseSignature").addEventListener("click", chooseSignature);
+  $("#btnRemoveSignature").addEventListener("click", removeSignature);
   $("#btnSaveSettings").addEventListener("click", saveSettings);
   $("#btnGenerate").addEventListener("click", generate);
   $("#btnSaveIntake").addEventListener("click", saveIntake);
@@ -1725,6 +1851,7 @@ async function boot() {
     : "— LibreOffice was not found on this computer, so PDF export is unavailable.";
 
   state.attorneyConfigured = res.attorney_configured;
+  renderSignature(res.signature);
   state.bootNotes = res.notes || [];
   markSettingsState();
   renderBootWarnings();

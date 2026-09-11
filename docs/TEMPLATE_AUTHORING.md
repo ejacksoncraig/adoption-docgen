@@ -132,36 +132,76 @@ A single field can opt out the same way, when the rest of its group does belong
 on the questionnaire. `attorney_fees_summary` sits in the `dhs` group — the
 family answers the rest of that group, but not the fee schedule.
 
+## The caption is a table
+
+Every caption in every template — 32 of them, since a packet holds several
+documents — is a borderless 1x3 table:
+
+| party text | ) | case number |
+|---|---|---|
+
+Column one holds the lines as they read, column two holds one `)` per line,
+column three holds the case number. The table declares `w:tblBorders` all `none`
+and zeroes `w:tblCellMar`, so on the page it is the caption it always was.
+
+It used to be drawn with tab stops: each line tabbed out to its `)` and, on one
+line, on again to the case number. That lines up only while the text to the left
+stays short. A child's name long enough to reach the stop pushes its own `)` onto
+the next one, and that single parenthesis steps out of the column — on the first
+page of a filing, in the part nobody re-reads. A column cannot drift.
+
+Only the `A Minor Child.` / `Minor Children.` line is indented, half an inch;
+nothing else in the caption is. `tests/test_all_variants.py` pins all of it:
+the shape (`test_every_caption_is_a_one_row_three_column_table`, matched on one
+row by three columns, which is what tells a caption apart from the notice's
+receipt grid), the indent, and that no table anywhere prints a rule.
+
+A caption that branches — the notice prints five lines for one child and seven
+for two — carries its `{%p if %}` in **both** the text column and the
+parentheses column, so the two stay the same height. The case-number column
+needs no branch: the number falls on the same line in either arm, so that column
+is built from the first arm alone. Building it from every arm prints the case
+number once per branch, which is the mistake to avoid if a third arm is ever
+added.
+
+### No table anywhere prints a rule
+
+Every table in these templates is a layout device — a caption, an address block,
+a receipt grid — and a printed border on any of them is a box drawn across a
+court filing. Five templates had visible rules left over from the `.doc`
+conversion; they are off now and
+`test_no_table_in_any_template_prints_a_rule` keeps them off. That test also
+fails a table that declares no borders at all, since the default is to show them.
+
 ## Where a numbered allegation sits on the page
 
-The office's originals put the number hard against the left margin and let one
-tab carry the text to the first half-inch stop:
+Every numbered paragraph, in every template, indents its first line half an inch.
+The number sits at 0.5" and one tab carries its text to the next stop:
 
 ```
-1.<tab>That the Petitioner has been a resident of Wagoner County ...
+    1.<tab>That the Petitioner has been a resident of Wagoner County ...
 ```
 
-first-line indent **0**, not 1". Converting the `.doc` files gave every numbered
-paragraph a 1" first-line indent, which put the number an inch in and its text
-half an inch further again — across all ten templates, 127 paragraphs. Restored
-to 0, and pinned by `test_numbered_allegations_start_at_the_left_margin` in
+`w:ind w:firstLine="720"`, and nothing else. Converting the office's `.doc`
+originals had left them all at 1", which put the number an inch in and its text
+half an inch further again. The originals were not consistent either — the
+notice ran two levels, its numbered rights sitting a further half-inch in than
+the allegations above them — so the office was asked and chose the single rule.
+127 paragraphs across the ten templates.
+
+Pinned by `test_every_numbered_paragraph_is_indented_half_an_inch` in
 `tests/test_all_variants.py`, which reads the templates themselves rather than a
-render, because a re-converted template would drift back out to the right and
-nothing about the *values* would be wrong.
+render. Nothing else in the suite would catch this drifting back: a re-converted
+template would return to 1" and every *value* in it would still be correct.
 
-The one exception is a sub-list. The notice's numbered rights sit under the
-"PURSUANT TO 10 O.S. §40.4" heading and are a level further in — number at 0.5",
-text at 1" — in the original too, so they keep a first-line indent of 720:
-
-```
-    1.<tab>The biological parents, Indian custodians, and/or the child's Tribe ...
-```
+When adding a template, note that a `w:ind` has a place in the schema's running
+order for `w:pPr` — after `w:spacing`, before `w:jc`. Word tolerates it appended
+anywhere; stricter readers do not.
 
 Prose paragraphs — "Comes now …", "WHEREFORE, premises considered …" — still
-carry the converted 1" first-line indent. The notice's original uses 0.5" for
-its prose, so the rest are probably a half-inch out too, but the other originals
-are not in the tree to check against and nobody has asked. If that gets fixed,
-fix it the same way: read the original, do not guess.
+carry the converted 1" first-line indent, and nobody has asked about them. The
+notice's original uses 0.5" for its prose, so they are probably a half-inch out
+too. If that gets fixed, fix it the same way: read the original, do not guess.
 
 ## One document filed in several variants
 
@@ -258,23 +298,6 @@ Two things about that document differ from what the office typed, on purpose:
 - Paragraph 2 read "The children are an \"Indian Child\"" in the plural. It now
   reads "are each an \"Indian Child\"".
 
-### The caption is drawn with tabs
-
-The column of parentheses is not a table. Each caption line is tabbed out against
-Word's default half-inch stops so the ")" lands at 5040 twips, with the case
-number one stop further at 5760. The tab counts — 1, 7, 3, 7, 5 down the page —
-were measured against this caption's own wording and are pinned by
-`test_the_caption_puts_every_parenthesis_in_one_column`.
-
-The consequence worth knowing: the child's name has to fit inside the first stop
-it tabs away from, about 1.5 inches, or roughly 18 capital letters. A longer name
-pushes its line's tab onto the next stop and that one ")" steps out of the
-column. Nothing else breaks — no value is wrong, the notice is still correct and
-still serves — but the caption stops looking straight. Giving those paragraphs
-explicit tab stops instead of relying on the default ones would make it immune;
-it has not been done because the office formatted this caption by hand and the
-default-stop version is what they approved.
-
 ### What the notice asks for that nothing else does
 
 Four fields in the `icwa` group exist only for this document, and all four are
@@ -307,6 +330,52 @@ in `fields.json` as a derived field in the `case` group.
 `config/settings.json` ships empty. A template that needs a value it does not have
 refuses to generate and names the missing setting. That is deliberate: a decree
 that names no attorney of record is worse than one that fails to render.
+
+## The attorney's signature
+
+The office uploads one signature image under **Office details**. It is stored
+beside `config/settings.json` as `config/signature.<ext>`, belongs to the
+installation rather than the repository, is gitignored, and survives a rebuild.
+
+Templates reach it as `{{ attorney_signature }}`, guarded:
+
+```
+By{% if attorney_signature %}{{ attorney_signature }}{% else %}_________________________{% endif %}
+```
+
+```
+By:{% if attorney_signature %}  {{ attorney_signature }}{% endif %}
+```
+
+The guard is not optional. With no image on file — or with signing switched off
+for a filing on the Review screen — the token is absent and the line has to print
+as it always did. `attorney_signature` is declared `"optional": true` in
+`fields.json`, which is what stops the pre-render check from treating a missing
+signature as an unfilled setting; see `FieldDef.optional` in `app/schema.py`.
+
+`{{ attorney_signature }}` reaches the context as a *path*, because that is what
+a derived `attorney_` field can carry. `app/engine.py::with_signature` swaps it
+for a docxtpl `InlineImage` at render time — an InlineImage writes the picture
+into one document's package, so it cannot be built once and shared across the
+four documents of a filing.
+
+### Put it only where the attorney signs
+
+There are 16 signature spots across the ten templates, and every one of them sits
+directly above the block naming the attorney. The petitioners' lines, the
+notary's, the judge's, and the attorney blocks printed under a judge's signature
+as "prepared by" are all deliberately left alone.
+
+`test_every_signature_sits_directly_above_the_attorneys_own_block` in
+`tests/test_signature.py` enforces exactly that: it finds every drawing in a
+generated filing and requires the next non-empty line to name the attorney. If a
+new template puts `{{ attorney_signature }}` anywhere else, that test fails —
+which is the point. This program signs on the attorney's behalf, so where it will
+and will not do so needs to be a rule rather than a convention.
+
+The size is fixed in `app/signature.py`: scaled to fit 12 mm tall by 60 mm wide,
+aspect kept. Height alone is not enough — a signature scanned as a long thin
+strip would print four inches wide and run off the end of its line.
 
 ## Procedure for a new template
 

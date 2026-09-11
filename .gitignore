@@ -15,6 +15,10 @@ questionnaire_*.docx
 templates/_source/
 *.doc
 
+# The attorney's own signature. Belongs to the installation, like settings.json,
+# and is the one file here nobody should be able to copy out of a repository.
+config/signature.*
+
 # ---- Python ----
 __pycache__/
 *.py[cod]

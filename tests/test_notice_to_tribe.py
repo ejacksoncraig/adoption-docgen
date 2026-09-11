@@ -246,29 +246,59 @@ def test_both_signature_blocks_sit_on_the_right(registry, tmp_path, today):
 # --------------------------------------------------------------------------
 
 
-def test_the_caption_puts_every_parenthesis_in_one_column(registry, tmp_path, today):
-    """The caption is drawn with tabs against Word's default half-inch stops, so
-    that the ")" on every line lands at 5040 twips and reads as a vertical rule.
+def caption_table(document):
+    """The caption's 1x3 layout table: party text, parentheses, case number."""
+    from docx.oxml.ns import qn
+    from docx.table import Table
 
-    These tab counts are the drawing. They were measured against this caption's
-    own wording, so changing the wording means re-counting them — hence pinning
-    them here rather than only eyeballing the rendered page."""
-    document = _notice_document(registry, tmp_path, today)
-    caption = [p for p in document.paragraphs
-               if p.style is not None and p.style.name == "No Spacing"]
-
-    # Five lines, twice over: page 1, then the certificate of service.
-    assert len(caption) == 10
-    tabs_before_the_parenthesis = [p.text.split(")")[0].count("\t") for p in caption]
-    assert tabs_before_the_parenthesis == [1, 7, 3, 7, 5] * 2
-    for paragraph in caption:
-        assert paragraph.text.count(")") == 1, paragraph.text
+    for child in document.element.body.iterchildren():
+        if child.tag != qn("w:tbl"):
+            continue
+        grid = child.find(qn("w:tblGrid"))
+        if grid is not None and len(grid) == 3:
+            return Table(child, document)
+    raise AssertionError("no three-column caption table in the document")
 
 
-def test_the_caption_names_the_case_once_and_the_child_in_capitals(registry, tmp_path, today):
-    text = render(registry, fixtures.BASE, tmp_path, today, template=NOTICE)
-    assert "IN THE MATTER OF THE ADOPTION OF:" in text
-    assert "SAMPLE CHILD\t\tDOB:  3/2/2015\t)\tCase No.  FA-2026-_____" in text
+def caption_lines(document):
+    """Each caption row as (party text, parenthesis, case number)."""
+    cells = caption_table(document).rows[0].cells
+    depth = max(len(c.paragraphs) for c in cells)
+    rows = []
+    for i in range(depth):
+        rows.append(tuple(
+            c.paragraphs[i].text if i < len(c.paragraphs) else "" for c in cells
+        ))
+    return rows
+
+
+def test_the_caption_keeps_every_parenthesis_in_its_own_column(registry, tmp_path, today):
+    """The parentheses used to be tabbed out, which only lined up while the text
+    beside them stayed short — a long child's name pushed its own ")" to the next
+    stop and broke the rule. A column cannot drift, whatever the name."""
+    document = _notice_document(registry, tmp_path, today, fixtures.values(
+        child1_name="MAXIMILIAN BARTHOLOMEW CUNNINGHAM-WHITTINGTON"))
+    parentheses = [paren for _text, paren, _number in caption_lines(document)]
+    assert parentheses == [")"] * 5
+
+
+def test_the_caption_names_the_child_and_the_case_in_their_own_columns(
+    registry, tmp_path, today
+):
+    rows = caption_lines(_notice_document(registry, tmp_path, today))
+    assert rows[0][0] == "IN THE MATTER OF THE ADOPTION OF:"
+    assert rows[2][0] == "SAMPLE CHILD\t\tDOB:  3/2/2015"
+    assert rows[2][2] == "Case No.  FA-2026-_____"
+    # The case number belongs in the third column and only there.
+    assert [n for _t, _p, n in rows if n.strip()] == ["Case No.  FA-2026-_____"]
+
+
+def test_only_the_minor_child_line_is_indented(registry, tmp_path, today):
+    """Half an inch on the "A MINOR CHILD" line, nothing on the rest."""
+    cell = caption_table(_notice_document(registry, tmp_path, today)).rows[0].cells[0]
+    indented = {p.text.strip(): p.paragraph_format.first_line_indent for p in cell.paragraphs}
+    assert indented["A MINOR CHILD"] == Inches(0.5)
+    assert all(v is None for k, v in indented.items() if k != "A MINOR CHILD")
 
 
 def test_a_second_child_is_added_to_the_caption_without_moving_the_column(
@@ -286,13 +316,23 @@ def test_a_second_child_is_added_to_the_caption_without_moving_the_column(
         "child2_birth_state": "Oklahoma",
         "name_change_child2": False,
     }
-    document = _notice_document(registry, tmp_path, today, values, variant="dhs_1p_2c")
-    caption = [p for p in document.paragraphs
-               if p.style is not None and p.style.name == "No Spacing"]
+    rows = caption_lines(
+        _notice_document(registry, tmp_path, today, values, variant="dhs_1p_2c"))
 
-    # Seven lines now: the "And" and the second child sit between the two spacers.
-    assert len(caption) == 14
-    assert [p.text.split(")")[0].count("\t") for p in caption] == [1, 7, 3, 7, 3, 7, 5] * 2
+    # Two more lines than the singular caption: the "And" and the second child.
+    assert [paren for _t, paren, _n in rows] == [")"] * 7
+    assert rows[3][0] == "And"
+    assert "SAMPLE CHILD TWO" in rows[4][0]
+    assert [n for _t, _p, n in rows if n.strip()] == ["Case No.  FA-2026-_____"]
+
+
+def test_the_caption_table_prints_no_rules(registry, tmp_path, today):
+    from docx.oxml.ns import qn
+
+    table = caption_table(_notice_document(registry, tmp_path, today))
+    borders = table._tbl.find(qn("w:tblPr")).find(qn("w:tblBorders"))
+    assert borders is not None, "the caption table declares no borders at all"
+    assert {edge.get(qn("w:val")) for edge in borders} == {"none"}
 
 
 # --------------------------------------------------------------------------

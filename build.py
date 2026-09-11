@@ -68,8 +68,14 @@ ALONGSIDE = ("config", "templates")
 KEEP_DIRS = ("output", "intake")
 
 #: Belongs to the installation, not the repository. A rebuild must never wipe the
-#: office's own attorney details, so an existing copy is carried across.
+#: office's own attorney details, so an existing copy is carried across. Read and
+#: written as bytes: config/signature.* is the attorney's signature image, and
+#: losing it to a rebuild would mean re-scanning a signature to get it back.
 PRESERVE = ("config/settings.json",)
+
+#: Same rule, for files whose name is not known ahead of time — the signature is
+#: stored under whatever extension the image turned out to be.
+PRESERVE_GLOBS = ("config/signature.*",)
 
 #: Packages PyInstaller does not always find on its own, and the check that they
 #: made it in. pypdf is imported inside a function — only when a client's form
@@ -265,7 +271,7 @@ def verify_bundle() -> str | None:
     return None
 
 
-def read_preserved() -> dict[str, str]:
+def read_preserved() -> dict[str, bytes]:
     """Take a copy of the installation's own settings before anything is deleted.
 
     Read at the very start of the build, not just before the delete that would
@@ -273,15 +279,19 @@ def read_preserved() -> dict[str, str]:
     build that dies while clearing config/ can leave the folder there with the
     settings already gone.
     """
-    kept = {}
+    kept: dict[str, bytes] = {}
     for relative in PRESERVE:
         existing = BUNDLE / relative
-        if existing.exists() and existing.read_text(encoding="utf-8").strip():
-            kept[relative] = existing.read_text(encoding="utf-8")
+        if existing.exists() and existing.read_bytes().strip():
+            kept[relative] = existing.read_bytes()
+    for pattern in PRESERVE_GLOBS:
+        for existing in sorted(BUNDLE.glob(pattern)):
+            if existing.is_file() and existing.stat().st_size:
+                kept[existing.relative_to(BUNDLE).as_posix()] = existing.read_bytes()
     return kept
 
 
-def copy_alongside(kept: dict[str, str]) -> None:
+def copy_alongside(kept: dict[str, bytes]) -> None:
     for name in ALONGSIDE:
         target = BUNDLE / name
         _remove(target)
@@ -292,7 +302,9 @@ def copy_alongside(kept: dict[str, str]) -> None:
         print(f"  copied {name}/")
 
     for relative, content in kept.items():
-        (BUNDLE / relative).write_text(content, encoding="utf-8")
+        target = BUNDLE / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
         print(f"  kept the installation's own {relative}")
 
     for name in KEEP_DIRS:

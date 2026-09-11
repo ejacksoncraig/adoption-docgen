@@ -338,6 +338,7 @@ class Registry:
         fields_raw = _read_json(config_dir / "fields.json")
         matters_raw = _read_json(config_dir / "matters.json")
         settings = _read_settings(config_dir / "settings.json")
+        settings.update(signature_setting(config_dir))
 
         schema = Schema(fields_raw)  # raises ConfigError on a bad fields.json
 
@@ -492,6 +493,26 @@ def settings_path(config_dir: Path | None = None) -> Path:
     return (config_dir or CONFIG_DIR) / "settings.json"
 
 
+#: The attorney's signature is an office detail like the bar number, so templates
+#: reach it the same way — a derived ``attorney_`` field, filled from the settings
+#: dict. It is not a *line* in settings.json though: it is an image file beside
+#: it, so it is folded in at load time rather than read from the file, and
+#: write_settings refuses to persist it. See app/signature.py.
+SIGNATURE_SETTING = "attorney_signature"
+
+
+def signature_setting(config_dir: Path | None = None) -> dict[str, str]:
+    """{attorney_signature: <path>} when one is on file, {} when there is none.
+
+    Absent rather than blank: a template guards it with ``{% if %}``, and
+    build_context drops blank values anyway.
+    """
+    from app import signature
+
+    path = signature.stored_path(config_dir or CONFIG_DIR)
+    return {SIGNATURE_SETTING: str(path)} if path else {}
+
+
 def office_fields(schema: Schema, settings: dict[str, Any]) -> list[dict[str, Any]]:
     """The office settings to offer for editing, with their current values.
 
@@ -502,7 +523,10 @@ def office_fields(schema: Schema, settings: dict[str, Any]) -> list[dict[str, An
     will change a document.
     """
     known = {key for key, _, _ in OFFICE_FIELDS}
-    extra = [k for k in settings if not k.startswith("_") and k not in known]
+    extra = [
+        k for k in settings
+        if not k.startswith("_") and k not in known and k != SIGNATURE_SETTING
+    ]
 
     rows = []
     for key, label, hint in OFFICE_FIELDS + tuple((k, k, "") for k in sorted(extra)):
@@ -535,8 +559,9 @@ def write_settings(values: dict[str, str], config_dir: Path | None = None) -> Pa
         existing = _read_json(path)
 
     for key, value in values.items():
-        if key.startswith("_"):
-            continue                     # never let the UI rewrite the comment
+        if key.startswith("_") or key == SIGNATURE_SETTING:
+            continue     # the comment is not the UI's to rewrite, and the
+            #              signature is a file on disk, not a line in here
         existing[key] = str(value).strip()
 
     temporary = path.with_name(path.name + ".tmp")
