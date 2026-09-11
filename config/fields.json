@@ -42,6 +42,8 @@
     { "id": "case_year", "group": "case", "type": "text", "derived": true },
     { "id": "attorney_short_name", "group": "case", "type": "text", "derived": true,
       "help": "Pulled from settings, not the intake form." },
+    { "id": "attorney_signature", "group": "case", "type": "text", "derived": true, "optional": true,
+      "help": "The attorney's signature image, uploaded once under Office details and stored beside settings.json. Printed on the attorney's signature lines. Optional: with no image on file, or with signing switched off for a filing, those lines print as they always have." },
 
     { "id": "petitioner1_name", "group": "petitioner1", "type": "text", "label": "Full legal name", "required": true },
     { "id": "petitioner1_address", "group": "petitioner1", "type": "text", "label": "Current address", "required": true },

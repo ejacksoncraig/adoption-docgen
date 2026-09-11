@@ -32,6 +32,12 @@ belong to the installation, so a rebuild keeps whatever is already in the bundle
 Those details are edited in the application itself — **Office details** in the
 sidebar — rather than by hand, though the file is still ordinary JSON.
 
+The attorney's signature image is kept the same way, as `config/signature.<ext>`.
+Upload it once under **Office details**; it is printed on the attorney's own
+signature lines and nowhere else, and any filing can be generated without it by
+clearing "Place the attorney's signature" on the Review screen. It is gitignored
+and preserved across rebuilds, like the settings beside it.
+
 A packaged build also carries a copy of `config/` and `templates/` *inside* the
 executable. Those are a fallback, never the working copy: they are used only when
 there are none beside the application, which happens when somebody moves the
