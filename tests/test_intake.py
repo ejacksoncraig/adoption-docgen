@@ -149,3 +149,63 @@ def test_sample_values_take_the_other_branch_when_asked(registry, pilot_groups):
     assert other["name_change"] is False
     assert other["bio_mother_status"] == "terminated"
     assert registry.schema.missing_required(other, pilot_groups) == []
+
+
+# --------------------------------------------------------------------------
+# the office's own worksheet
+# --------------------------------------------------------------------------
+#
+# The questionnaire above is the family's and leaves out what the office fills
+# in for itself. The worksheet is the other half: the whole intake, on paper,
+# for an attorney to take an interview on and type up afterwards.
+
+
+@pytest.fixture
+def worksheet_text(registry, tmp_path) -> str:
+    path = intake.build_intake_worksheet(registry, PILOT_MATTER, PILOT_VARIANT, tmp_path / "w.docx")
+    return engine.document_text(path)
+
+
+def test_the_worksheet_asks_every_question_the_variant_collects(registry, worksheet_text):
+    """Including the ones the family is never asked. Anything missing here is a
+    question somebody has to remember on their own."""
+    groups = registry.variant(PILOT_MATTER, PILOT_VARIANT).field_groups
+    for fd in registry.schema.input_fields(groups):
+        assert fd.label in worksheet_text, f"{fd.id} is not on the worksheet"
+
+
+def test_the_worksheet_carries_what_the_questionnaire_leaves_out(registry, tmp_path, worksheet_text):
+    questionnaire = engine.document_text(
+        intake.build_questionnaire(registry, PILOT_MATTER, PILOT_VARIANT, tmp_path / "q2.docx"))
+    for office_only in ("Filing county", "Case number", "Hourly rate", "Filing fee"):
+        assert office_only in worksheet_text, office_only
+        assert office_only not in questionnaire, office_only
+
+
+def test_the_worksheet_says_which_questions_are_conditional(worksheet_text):
+    """A blank on paper is ambiguous — not asked, or asked and answered "no"?"""
+    assert 'only if "Does ICWA apply?" is yes' in worksheet_text
+
+
+def test_the_worksheet_offers_somewhere_to_write_every_answer(registry, tmp_path):
+    """A question with no line under it is a question that gets skipped."""
+    import docx
+
+    path = intake.build_intake_worksheet(registry, PILOT_MATTER, PILOT_VARIANT, tmp_path / "w3.docx")
+    lines = [p.text.strip() for p in docx.Document(str(path)).paragraphs]
+    groups = registry.variant(PILOT_MATTER, PILOT_VARIANT).field_groups
+
+    for fd in registry.schema.input_fields(groups):
+        at = next(i for i, t in enumerate(lines) if t == f"{fd.label}:")
+        following = [t for t in lines[at + 1:at + 4] if t]
+        assert any("____" in t or "/" in t for t in following), f"{fd.id} has nowhere to write"
+
+
+def test_every_ready_variant_produces_a_worksheet(registry, tmp_path):
+    for matter in registry.matters:
+        for variant in matter.variants:
+            if not variant.is_ready:
+                continue
+            path = intake.build_intake_worksheet(
+                registry, matter.id, variant.id, tmp_path / f"{variant.id}.docx")
+            assert path.exists() and path.stat().st_size > 0

@@ -248,6 +248,103 @@ def build_questionnaire(registry: Registry, matter_id: str, variant_id: str, out
     return out_path
 
 
+# --------------------------------------------------------------------------
+# the office's own worksheet
+# --------------------------------------------------------------------------
+
+_WORKSHEET_INSTRUCTIONS = (
+    "Every question this matter asks, in the order the intake form asks them, "
+    "so an interview can be taken on paper and typed in afterwards. Questions "
+    "the family is never asked — the filing county, the fee figures, the "
+    "attorney's own details — are included here, because this is the office's "
+    "copy rather than theirs."
+)
+
+
+def _worksheet_note(schema: Schema, fd: FieldDef) -> str:
+    """What a person filling this in by hand needs told about the question."""
+    notes = []
+    if fd.depends_on:
+        gate = schema.fields.get(fd.depends_on)
+        notes.append(f"only if \"{gate.label if gate else fd.depends_on}\" is yes")
+    elif not fd.required:
+        notes.append("if applicable")
+    if fd.help:
+        notes.append(fd.help)
+    return " — ".join(notes)
+
+
+def build_intake_worksheet(
+    registry: Registry, matter_id: str, variant_id: str, out_path: Path
+) -> Path:
+    """A blank worksheet covering *every* question the variant collects.
+
+    The paper questionnaire above is the family's: it leaves out what the office
+    fills in for itself. This is the other half — the whole intake, in the order
+    the screen asks it, for an attorney to take an interview on and type up
+    afterwards. Both are built from the schema, so a field added to fields.json
+    appears on both without anyone remembering to add it.
+    """
+    variant = registry.variant(matter_id, variant_id)
+    matter = registry.matter(matter_id)
+    schema = registry.schema
+
+    doc = docx.Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title.add_run("ADOPTION INTAKE WORKSHEET")
+    run.bold = True
+    run.font.size = Pt(14)
+
+    subtitle = doc.add_paragraph()
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle.add_run(f"{matter.label} — {variant.label}").italic = True
+
+    intro = doc.add_paragraph()
+    intro.add_run(_WORKSHEET_INSTRUCTIONS).italic = True
+
+    header = doc.add_paragraph()
+    header.paragraph_format.space_before = Pt(10)
+    header.add_run("Client: " + "_" * 38 + "     Taken by: " + "_" * 20
+                   + "     Date: " + "_" * 16)
+
+    for group_id in schema.group_order(variant.field_groups):
+        fields = schema.input_fields([group_id])
+        if not fields:
+            continue
+        heading = doc.add_paragraph()
+        heading.paragraph_format.space_before = Pt(14)
+        heading.paragraph_format.space_after = Pt(2)
+        heading.add_run(schema.groups[group_id].get("label", group_id).upper()).bold = True
+
+        for fd in fields:
+            question = doc.add_paragraph()
+            question.paragraph_format.space_before = Pt(7)
+            question.paragraph_format.space_after = Pt(0)
+            question.add_run(f"{fd.label}:")
+            note = _worksheet_note(schema, fd)
+            if note:
+                line = doc.add_paragraph()
+                line.paragraph_format.space_after = Pt(0)
+                line.add_run(note).italic = True
+            answer = doc.add_paragraph(_prompt_for(fd))
+            answer.paragraph_format.space_after = Pt(4)
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(out_path))
+    return out_path
+
+
+def default_worksheet_path(matter_id: str, variant_id: str, directory: Path | None = None) -> Path:
+    directory = directory or OUTPUT_DIR
+    return directory / f"intake_worksheet_{matter_id}_{variant_id}.docx"
+
+
 def default_questionnaire_path(matter_id: str, variant_id: str, directory: Path | None = None) -> Path:
     directory = directory or OUTPUT_DIR
     return directory / f"questionnaire_{matter_id}_{variant_id}.docx"

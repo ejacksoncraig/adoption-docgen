@@ -265,6 +265,34 @@ Use this only for values that are genuinely optional in that document. If a
 template needs a value in every case, add the group to the variant's own
 `field_groups` instead, so the form asks for it.
 
+## Three counties, and none of them interchangeable
+
+The juvenile documents are the first templates that cannot just print
+`{{ county }}`. Three different courts are in play:
+
+| Field | The court it names |
+|---|---|
+| `county` | where the adoption is filed — the heading of every other template |
+| `juvenile_county` | where the deprived case sits, the heading of both juvenile documents |
+| `probate_county` | the court being asked to take the adoption, named in the body of the concurrent jurisdiction application and order |
+
+Asking for concurrent jurisdiction only makes sense when the first two differ,
+so `juvenile_county` is the one that will actually be filled in. Both extra
+fields default to `{{ county | default('', true) }}` — the usual case is that
+they are all the same and nobody should answer the same question three times to
+say so.
+
+Note the `| default('', true)`. A default is rendered *after* derived values and
+against whatever is in the context, so a default that reads another answer has
+to survive that answer being absent — which it is on an empty draft. Without the
+filter, drafting a blank intake raises `'county' is undefined` instead of
+marking the gap. The same trap caught the affidavit's fee sentence.
+
+Because the heading needs the county in capitals and a defaulted field cannot be
+the source of a derived `_upper` (the derivation runs first, the default second),
+these templates use Jinja's own filter: `{{ juvenile_county|upper }}`. That is
+the exception to the `_upper` convention, and the reason for it.
+
 ## A document that is not always filed
 
 Most documents in a filing are guarded *inside* the template — ICWA off prints

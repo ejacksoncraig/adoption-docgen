@@ -7,7 +7,9 @@ paragraphs that don't apply.
 ## Status
 
 Working end to end for all six variants — four DHS combinations and two
-step-parent — across nine templates. Pick a type, fill in the intake, review,
+step-parent — across thirteen templates. Three of those are filed only when the
+matter calls for it, and the intake asks: concurrent jurisdiction, the juvenile
+records request, and the filing cover sheets. Pick a type, fill in the intake, review,
 generate.
 
 Depth of testing varies. `dhs_petition_decree_1p_1c` has a golden file and
@@ -60,6 +62,10 @@ Two ways, neither of which needs a server or a login:
   `docs/CLIENT_FORMS.md`.
 - **Paper.** Export a blank .docx questionnaire, email it, and type the answers
   back in.
+- **An interview.** Export the intake worksheet — every question this matter
+  asks, blank, including the ones the family is never asked — take it into the
+  meeting, and type it up afterwards. Both are built from `config/fields.json`,
+  so a question added there appears on both.
 
 ## Setup
 

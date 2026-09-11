@@ -475,6 +475,17 @@ class Api:
         path = intake.build_questionnaire(self.registry, matter, variant_id, target)
         return {"ok": True, "path": str(path)}
 
+    @guarded
+    def worksheet(self, payload: dict) -> dict:
+        """The office's own worksheet: every question, blank, to take notes on."""
+        matter, variant_id = payload["matter"], payload["variant"]
+        default = intake.default_worksheet_path(matter, variant_id)
+        target = self._ask_where_to_save(default)
+        if target is None:
+            return {"ok": True, "cancelled": True}
+        path = intake.build_intake_worksheet(self.registry, matter, variant_id, target)
+        return {"ok": True, "path": str(path)}
+
     def _ask_where_to_save(self, default: Path) -> Path | None:
         """None means the dialog was cancelled."""
         if self._window is None:

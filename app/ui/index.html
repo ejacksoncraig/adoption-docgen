@@ -522,6 +522,7 @@
         <button class="btn" id="btnRandom" title="Fill every question with obviously-fake test answers">Fill with test data</button>
         <button class="btn" id="btnSaveIntake">Save intake…</button>
         <button class="btn" id="btnQuestionnaire">Paper questionnaire…</button>
+        <button class="btn" id="btnWorksheet" title="Every question on this intake, blank, to fill in by hand and type up afterwards">Intake worksheet…</button>
         <span class="spacer"></span>
         <button class="btn primary" id="btnToReview">Review</button>
       </div>
@@ -1784,6 +1785,13 @@ async function exportQuestionnaire() {
   status(res.cancelled ? "Export cancelled." : "Questionnaire written to " + res.path);
 }
 
+async function exportWorksheet() {
+  status("Building the worksheet…", true);
+  const res = await call("worksheet", { matter: state.matter, variant: state.variant });
+  if (!res.ok) { $("#intakeNote").replaceChildren(noteBox("error", "Could not build the worksheet", res.problems)); return; }
+  status(res.cancelled ? "Export cancelled." : "Worksheet written to " + res.path);
+}
+
 /* ---------- wiring ---------- */
 
 function wire() {
@@ -1810,6 +1818,7 @@ function wire() {
   $("#btnLoadIntake").addEventListener("click", openIntake);
   $("#recentIntakeSelect").addEventListener("change", (event) => openRecentIntake(event.target.value));
   $("#btnQuestionnaire").addEventListener("click", exportQuestionnaire);
+  $("#btnWorksheet").addEventListener("click", exportWorksheet);
   $("#btnRandom").addEventListener("click", fillWithTestData);
   $("#btnImportResponse").addEventListener("click", importResponse);
   $("#mapperCancel").addEventListener("click", closeMapper);
@@ -1864,6 +1873,7 @@ async function boot() {
   if (res.mode === "browser") {
     $("#btnSaveIntake").textContent = "Save intake";
     $("#btnQuestionnaire").textContent = "Paper questionnaire";
+    $("#btnWorksheet").textContent = "Intake worksheet";
   }
 
   if (state.catalog.length === 1) selectMatter(state.catalog[0].id);
