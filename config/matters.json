@@ -12,7 +12,7 @@
           "status": "ready",
           "petitioners": 1,
           "children": 1,
-          "field_groups": ["case", "petitioner1", "child1", "bio_parents", "dhs", "icwa"],
+          "field_groups": ["case", "petitioner1", "child1", "bio_parents", "dhs", "icwa", "extras"],
           "documents": [
             {
               "template": "dhs/dhs_petition_decree_1p_1c.docx",
@@ -26,7 +26,7 @@
           "status": "ready",
           "petitioners": 2,
           "children": 1,
-          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "bio_parents", "dhs", "icwa"],
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "bio_parents", "dhs", "icwa", "extras"],
           "documents": [
             { "template": "dhs/dhs_petition_decree_2p_1c.docx",
               "output_name": "1 Petition and Decree - {{ child1_name }}.docx" }
@@ -38,7 +38,7 @@
           "status": "ready",
           "petitioners": 1,
           "children": 2,
-          "field_groups": ["case", "petitioner1", "child1", "child2", "bio_parents", "dhs", "icwa"],
+          "field_groups": ["case", "petitioner1", "child1", "child2", "bio_parents", "dhs", "icwa", "extras"],
           "documents": [
             { "template": "dhs/dhs_petition_1p_2c.docx",
               "output_name": "1 Petition - {{ child1_name }}.docx" }
@@ -50,7 +50,7 @@
           "status": "ready",
           "petitioners": 2,
           "children": 2,
-          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "bio_parents", "dhs", "icwa"],
+          "field_groups": ["case", "petitioner1", "petitioner2", "child1", "child2", "bio_parents", "dhs", "icwa", "extras"],
           "documents": [
             { "template": "dhs/dhs_petition_2p_2c.docx",
               "output_name": "1 Petition - {{ child1_name }}.docx" }
@@ -70,7 +70,22 @@
           "output_name": "4 Notice to Tribe - {{ tribe }} - {{ child1_name }}.docx",
           "status": "ready",
           "depends_on": "icwa_applies",
-          "field_groups": ["petitioner2", "child2", "stepparent"] }
+          "field_groups": ["petitioner2", "child2", "stepparent"] },
+        { "template": "dhs/dhs_concurrent_jurisdiction.docx",
+          "output_name": "5 Concurrent Jurisdiction - {{ child1_name }}.docx",
+          "status": "ready",
+          "depends_on": "concurrent_jurisdiction",
+          "field_groups": ["child2"] },
+        { "template": "dhs/dhs_juvenile_records.docx",
+          "output_name": "6 Juvenile Records Request - {{ child1_name }}.docx",
+          "status": "ready",
+          "depends_on": "juvenile_records",
+          "field_groups": ["child2"] },
+        { "template": "dhs/dhs_filing_covers.docx",
+          "output_name": "7 Filing Cover Sheets - {{ child1_name }}.docx",
+          "status": "ready",
+          "depends_on": "filing_cover_sheets",
+          "field_groups": ["child2"] }
       ]
     },
 

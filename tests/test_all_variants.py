@@ -180,12 +180,17 @@ def test_a_numbered_paragraph_is_pushed_across_by_its_indent_alone(registry):
     assert not offenders, "numbered paragraphs padded by hand:\n" + "\n".join(offenders)
 
 
-def test_every_template_has_numbered_paragraphs_to_check(registry):
-    """Guards the guard: if the "1.<tab>" shape ever changes, the test above
-    would pass by finding nothing rather than by finding it correct."""
+def test_the_numbered_paragraphs_are_actually_being_found(registry):
+    """Guards the guard: if the "1.<tab>" shape ever changes, the tests above
+    would pass by finding nothing rather than by finding it correct.
+
+    Not every template has numbered allegations — a cover sheet is a caption and
+    a title, and the juvenile applications argue in prose — so this pins the
+    pleadings that do, and the total across the set."""
     counted = {path.name: len(list(numbered_paragraphs(path)))
                for path in template_paths(registry)}
-    assert all(counted.values()), f"no numbered paragraphs found in: {counted}"
+    assert counted["dhs_petition_decree_1p_1c.docx"] >= 19, counted
+    assert sum(counted.values()) >= 120, counted
 
 
 # --------------------------------------------------------------------------

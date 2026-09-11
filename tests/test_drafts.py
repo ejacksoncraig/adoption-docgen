@@ -14,6 +14,7 @@ from __future__ import annotations
 import pytest
 
 from app import engine
+from app.schema import as_bool
 from app.schema import IntakeError
 from conftest import PILOT_MATTER, PILOT_VARIANT
 from tests import fixtures
@@ -48,10 +49,15 @@ def draft_text(draft):
 
 
 def test_a_part_finished_intake_still_produces_documents(draft, registry):
-    """STARTED answers ICWA No, so the Notice to Tribe is one of the documents
-    this variant *could* produce but does not here — same as any other
-    conditional document, not a gap."""
-    expected = len(registry.variant(PILOT_MATTER, PILOT_VARIANT).all_documents()) - 1
+    """STARTED answers ICWA No and asks for none of the extra documents, so
+    several of the documents this variant *could* produce are not produced here
+    — the same as any other conditional document, and not a gap.
+
+    Counted from the intake rather than written down, so adding another optional
+    document does not silently make this assertion weaker."""
+    documents = registry.variant(PILOT_MATTER, PILOT_VARIANT).all_documents()
+    expected = sum(1 for d in documents
+                   if d.depends_on is None or as_bool(STARTED.get(d.depends_on)))
     assert len(draft.files) == expected
     assert all(f.path.exists() for f in draft.files)
 

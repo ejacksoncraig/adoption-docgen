@@ -31,7 +31,8 @@ def test_form_spec_is_everything_the_form_needs(api):
     res = api.form_spec({"matter": PILOT_MATTER, "variant": PILOT_VARIANT})
     assert res["ok"]
     groups = res["spec"]["groups"]
-    assert [g["id"] for g in groups] == ["case", "petitioner1", "child1", "bio_parents", "dhs", "icwa"]
+    assert [g["id"] for g in groups] == [
+        "case", "petitioner1", "child1", "bio_parents", "dhs", "icwa", "extras"]
     county = next(f for g in groups for f in g["fields"] if f["id"] == "county")
     assert county["type"] == "select" and "Wagoner" in county["options"] and county["required"]
     tribe = next(f for g in groups for f in g["fields"] if f["id"] == "tribe")
