@@ -277,7 +277,10 @@ def test_an_imported_response_generates_documents(registry, sheet, columns, tmp_
         "child1_birth_state": "Oklahoma",
         "icwa_applies": False,
         "kinship": False,
-        "attorney_fees_summary": fixtures.BASE["attorney_fees_summary"],
+        "attorney_hourly_rate": fixtures.BASE["attorney_hourly_rate"],
+        "attorney_hours": fixtures.BASE["attorney_hours"],
+        "filing_fee": fixtures.BASE["filing_fee"],
+        "amended_certificate_fee": fixtures.BASE["amended_certificate_fee"],
     })
     assert registry.schema.missing_required(values, registry.variant(PILOT_MATTER, PILOT_VARIANT).field_groups) == []
 

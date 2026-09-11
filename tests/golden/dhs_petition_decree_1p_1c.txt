@@ -1,11 +1,5 @@
 IN THE DISTRICT COURT IN AND FOR WAGONER COUNTY
 STATE OF OKLAHOMA
-In the Matter of the Adoption of )
-)
-SAMPLE CHILD )
-DOB: 3/2/2015 ) No. FA-2026-_____
-)
-A Minor Child. )
 PETITION FOR ADOPTION
 Comes now SAMPLE PETITIONER, and respectfully alleges and states as follows:
 1. That the Petitioner has been a resident of Wagoner County, State of Oklahoma, for at least six (6) consecutive months prior to the filing of this Petition and there is available in this state substantial evidence concerning the minor’s present and future care; Further, this Court has proper venue over this matter pursuant to Title 10 O.S. sec. 7502-1.2.
@@ -18,7 +12,7 @@ Comes now SAMPLE PETITIONER, and respectfully alleges and states as follows:
 8. That your Petitioner desires to adopt said child as the Petitioner’s own lawful child and desires that the relationship of parent and child be fully established between said Petitioner and said child.
 9. That the Home Study for the Petitioner is completed and has been filed herein and it is in the best interest of the minor child that the Court waive the entry of an Interlocutory Decree and the waiting period for (6) months as specifically provided for in Title 10 O.S. Sec. 7505-6.3, known as the Uniform Adoption Act of the State of Oklahoma and that a Final Decree of Adoption should be approved by this Court as soon as possible.
 10. That the Petitioner, in consideration of the Decree of this Honorable Court allowing the adoption of the above named child by the Petitioner, and in consideration of the consent of the Oklahoma Human Services, does hereby agree to support, maintain, and educate said child during the child’s minority and does agree to treat said child in all respects as the Petitioner’s own lawful child should be treated.
-11. That the biological mother of the child is SAMPLE BIRTH MOTHER and that the parent executed in the juvenile deprived action hereinabove mentioned a permanent relinquishment of her parental rights and consent to this adoption. A certified copy of said permanent relinquishment of parental rights and consent to adoption will be filed herein.
+11. That the biological mother of the child is SAMPLE BIRTH MOTHER and that the parent executed in the juvenile deprived action hereinabove mentioned a permanent relinquishment of their parental rights and consent to this adoption. A certified copy of said permanent relinquishment of parental rights and consent to adoption will be filed herein.
 12. That the biological father of the child is SAMPLE BIRTH FATHER and that the parent executed in the juvenile deprived action hereinabove mentioned a permanent relinquishment of his parental rights and consent to this adoption. A certified copy of said permanent relinquishment of parental rights and consent to adoption will be filed herein.
 13. That lawful written consent of the Department of Human Services, will be entered before this Court prior to the issuance of a final decree.
 14. That said child is less than 12 years of age and, therefore, the child’s consent to this Adoption is not required under the Oklahoma Uniform Adoption Act, Okla. Stat. Tit. 10 Sec. 7503-2.1.
@@ -41,12 +35,6 @@ Subscribed and sworn to before me this _____ day of __________________, 2026.
 Notary Public
 IN THE DISTRICT COURT IN AND FOR WAGONER COUNTY
 STATE OF OKLAHOMA
-In the Matter of the Adoption of )
-)
-SAMPLE CHILD )
-DOB: 3/2/2015, ) No. FA-2026-_____
-)
-A Minor Child. )
 DECREE OF ADOPTION
 Now on this ____ day of _____________, 2026, the above styled cause comes on for hearing by the Court upon the Petition of SAMPLE PETITIONER, for a Decree of Adoption; and the Petitioner being personally present in Court with attorney of record, SAMPLE SHORT NAME, and said child, SAMPLE CHILD, being personally present in Court; a representative appears on behalf of the Oklahoma Department of Human Services in order to consent to this Adoption; and
 The Court thereupon proceeded to examine the pleadings and to receive the evidence of witnesses sworn and examined before the Court, and the Court makes the following finds, to-wit:
@@ -68,6 +56,17 @@ IT IS THEREFORE ORDERED, ADJUDGED AND DECREED BY THE COURT that said child shall
 IT IS FURTHER ORDERED, ADJUDGED AND DECREED BY THE COURT that henceforth the relationship of parent and child and all the rights, duties and other legal consequences of the natural relation of parent and child shall exist between the child herein adopted and the adopting parent, SAMPLE PETITIONER.
 JUDGE OF THE DISTRICT COURT
 SAMPLE PETITIONER, Petitioner
+In the Matter of the Adoption of
+SAMPLE CHILD
+DOB: 3/2/2015
+A Minor Child.
+)
+)
+)
+)
+)
+)
+No. FA-2026-_____
 By:
 Terri Raye Craig, OBA #16485
 Attorney for Petitioner
@@ -75,6 +74,17 @@ P. O. Box 991
 Wagoner, OK 74477
 (918) 485-1529
 Craiglawoffice@yahoo.com
+In the Matter of the Adoption of
+SAMPLE CHILD
+DOB: 3/2/2015,
+A Minor Child.
+)
+)
+)
+)
+)
+)
+No. FA-2026-_____
 Terri Craig, OBA #16485
 Attorney for Petitioner
 P. O. Box 991

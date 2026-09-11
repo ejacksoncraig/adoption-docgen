@@ -42,6 +42,8 @@
     { "id": "case_year", "group": "case", "type": "text", "derived": true },
     { "id": "attorney_short_name", "group": "case", "type": "text", "derived": true,
       "help": "Pulled from settings, not the intake form." },
+    { "id": "attorney_signature", "group": "case", "type": "text", "derived": true, "optional": true,
+      "help": "The attorney's signature image, uploaded once under Office details and stored beside settings.json. Printed on the attorney's signature lines. Optional: with no image on file, or with signing switched off for a filing, those lines print as they always have." },
 
     { "id": "petitioner1_name", "group": "petitioner1", "type": "text", "label": "Full legal name", "required": true },
     { "id": "petitioner1_address", "group": "petitioner1", "type": "text", "label": "Current address", "required": true },
@@ -167,8 +169,23 @@
       "required": true, "options": ["consents", "terminated", "excused_nonsupport"],
       "help": "consents = will sign a written consent. terminated = rights already terminated by court order. excused_nonsupport = consent not required under 10 O.S. 7505-4.2 due to a year of willful non-support/non-contact." },
 
-    { "id": "attorney_fees_summary", "group": "dhs", "type": "text", "label": "Fees and costs to date",
+    { "id": "attorney_hourly_rate", "group": "dhs", "type": "number", "label": "Hourly rate",
       "required": true, "questionnaire": false,
-      "help": "Printed verbatim in the Affidavit of Expenditures, which is filed in every DHS adoption — so it is required. E.g. 'Hourly Rate = $300.00; Total Hours = 12.00 x $300.00 = $3,600.00; Filing Fee = $184.14; Total = $3,824.14.'" }
+      "help": "The office's rate, in dollars. Customarily 300." },
+    { "id": "attorney_hours", "group": "dhs", "type": "number", "label": "Hours worked to date",
+      "required": true, "questionnaire": false,
+      "help": "Hours, to two decimal places — 13.5 prints as 13.50." },
+    { "id": "filing_fee", "group": "dhs", "type": "number", "label": "Filing fee",
+      "required": true, "questionnaire": false,
+      "help": "Varies by county and changes over time. Customarily 184.14. Enter 0 and the line is left out of the affidavit altogether." },
+    { "id": "amended_certificate_fee", "group": "dhs", "type": "number", "label": "Amended birth certificate fee",
+      "required": true, "questionnaire": false,
+      "help": "Customarily 40. Enter 0 and the line is left out of the affidavit altogether." },
+    { "id": "expenditures_summary", "group": "dhs", "type": "text", "derived": true,
+      "help": "The costs-and-expenses sentence, built from the four figures above with the total added up rather than typed." },
+    { "id": "attorney_fees_summary", "group": "dhs", "type": "text", "label": "Fees and costs to date, in words",
+      "required": false, "questionnaire": false, "multiline": true,
+      "default": "{{ expenditures_summary | default('', true) }}",
+      "help": "Leave blank and the Affidavit of Expenditures states the four figures above, adding them up for you. Fill this in only to override that sentence wholesale — anything typed here is printed verbatim and nothing checks that it totals correctly." }
   ]
 }

@@ -16,7 +16,7 @@ import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from app import engine, intake, responses
+from app import engine, intake, responses, signature
 
 if TYPE_CHECKING:                       # for the annotation below only
     import webview
@@ -94,6 +94,7 @@ class Api:
             "intake_dir": str(INTAKE_DIR),
             "pdf_available": engine.find_soffice() is not None,
             "attorney_configured": bool(settings.get("attorney_short_name")),
+            "signature": signature.describe(),
             "saved_intakes": intake.list_intakes(),
             "mode": self.mode,
         }
@@ -107,6 +108,7 @@ class Api:
             "ok": True,
             "fields": office_fields(self.registry.schema, self.registry.settings),
             "path": str(settings_path()),
+            "signature": self._signature(),
         }
 
     @guarded
@@ -125,6 +127,82 @@ class Api:
             "fields": office_fields(self.registry.schema, self.registry.settings),
             "attorney_configured": bool(self.registry.settings.get("attorney_short_name")),
         }
+
+    # -- the attorney's signature -----------------------------------------
+
+    def _signature(self) -> dict:
+        """What is on file, with the image itself for the screen to show.
+
+        The preview is inlined as a data URL rather than served from a path: the
+        page is loaded from a file:// URL in the desktop window and over
+        loopback in the browser, and only one of those can read config/.
+        """
+        described = signature.describe()
+        path = described.get("path")
+        if path:
+            import base64
+
+            blob = Path(path).read_bytes()
+            kind = Path(path).suffix.lstrip(".").replace("jpg", "jpeg")
+            described["preview"] = f"data:image/{kind};base64,{base64.b64encode(blob).decode()}"
+        return described
+
+    def _reload(self) -> None:
+        """Re-read config so the next filing sees what just changed on disk."""
+        self.registry = Registry.load()
+
+    @guarded
+    def signature(self, _payload: dict | None = None) -> dict:
+        return {"ok": True, "signature": self._signature()}
+
+    @guarded
+    def save_signature(self, payload: dict) -> dict:
+        """Store an uploaded image, or one picked with a native dialog."""
+        import base64
+
+        blob = b""
+        if payload.get("data"):
+            try:
+                blob = base64.b64decode(payload["data"], validate=True)
+            except Exception:
+                return _fail(["That file could not be read."])
+        elif payload.get("path"):
+            source = Path(str(payload["path"]))
+            if not source.is_file():
+                return _fail([f"There is no file at {source}."])
+            blob = source.read_bytes()
+        else:
+            return _fail(["No image was given."])
+
+        try:
+            signature.save(blob)
+        except signature.SignatureError as exc:
+            return _fail(exc.problems)
+        self._reload()
+        return {"ok": True, "signature": self._signature()}
+
+    @guarded
+    def choose_signature(self, _payload: dict | None = None) -> dict:
+        if self._window is None:
+            return _fail(["No window available to open a file dialog."])
+        import webview
+
+        chosen = self._window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            allow_multiple=False,
+            file_types=("Signature image (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tiff)",
+                        "All files (*.*)"),
+        )
+        if not chosen:
+            return {"ok": True, "cancelled": True}
+        path = chosen[0] if isinstance(chosen, (list, tuple)) else chosen
+        return self.save_signature({"path": path})
+
+    @guarded
+    def remove_signature(self, _payload: dict | None = None) -> dict:
+        signature.remove()
+        self._reload()
+        return {"ok": True, "signature": self._signature()}
 
     # -- catalog and form -------------------------------------------------
 
@@ -208,6 +286,7 @@ class Api:
         result = engine.generate(
             self.registry, matter, variant_id, values,
             pdf=bool(payload.get("pdf")), draft=bool(missing),
+            sign=as_bool(payload.get("sign", True)),
         )
         return {"ok": True, "result": result.as_dict()}
 

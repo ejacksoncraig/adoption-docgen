@@ -130,7 +130,7 @@ def test_mother_and_father_branch_independently(registry, tmp_path, today):
                                             bio_father_status="terminated"), tmp_path, today)
     mother = text.split("12.")[0]
     father = text.split("12.")[1]
-    assert "permanent relinquishment of her parental rights" in mother
+    assert "permanent relinquishment of their parental rights" in mother
     assert "parental rights were terminated" in father
 
 

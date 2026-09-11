@@ -293,7 +293,7 @@ def sample_values(schema: Schema, groups: Iterable[str], *, truthy: bool = True)
         elif fd.type == "date":
             values[fd.id] = _sample_date(fd)
         elif fd.type == "number":
-            values[fd.id] = 1
+            values[fd.id] = _SHAPED_NUMBERS.get(fd.id, 1)
         else:
             values[fd.id] = _sample_text(fd)
     return values
@@ -336,10 +336,6 @@ def _sample_text(fd: FieldDef) -> str:
 #: Answers that read properly in the document rather than as a generic placeholder.
 #: Nothing here is a name — see the note in random_values about why.
 _SHAPED = {
-    "attorney_fees_summary": (
-        "Hourly Rate = $300.00; Total Hours = {hours}.00 x $300.00 = ${fees:,}.00; "
-        "Filing Fee = $184.14; Amended Birth Certificate = $40.00; Total = ${total:,.2f}."
-    ),
     "address": "{number} Sample Street, Sampletown, OK 74{zip3}",
     "place": "Sample {kind} Hospital",
     "city": "Sampletown",
@@ -382,7 +378,9 @@ def random_values(
         elif fd.type == "date":
             values[fd.id] = _random_date(fd, rng, today)
         elif fd.type == "number":
-            values[fd.id] = rng.randrange(1, 4)
+            values[fd.id] = _SHAPED_NUMBERS.get(fd.id)
+            if values[fd.id] is None:
+                values[fd.id] = rng.randrange(8, 20) if fd.id == "attorney_hours" else rng.randrange(1, 4)
         else:
             values[fd.id] = _random_text(fd, rng, tag)
 
@@ -407,12 +405,16 @@ def _random_date(fd: FieldDef, rng: "random.Random", today: date) -> str:
     return (today - timedelta(days=years * 365 + days)).isoformat()
 
 
-def _random_text(fd: FieldDef, rng: "random.Random", tag: int) -> str:
-    if fd.id == "attorney_fees_summary":
-        hours = rng.randrange(8, 20)
-        fees = hours * 300
-        return _SHAPED[fd.id].format(hours=hours, fees=fees, total=fees + 184.14 + 40)
+#: Figures that read as the office's own rather than as "1". The affidavit is
+#: sworn to, so a demonstration of it should show believable money.
+_SHAPED_NUMBERS = {
+    "attorney_hourly_rate": 300,
+    "filing_fee": 184.14,
+    "amended_certificate_fee": 40,
+}
 
+
+def _random_text(fd: FieldDef, rng: "random.Random", tag: int) -> str:
     for key, shape in _SHAPED.items():
         if fd.id == key or fd.id.endswith(f"_{key}"):
             return shape.format(

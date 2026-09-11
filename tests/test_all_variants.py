@@ -102,20 +102,21 @@ def test_placeholder_answers_satisfy_every_variant(registry):
 # where the numbered allegations sit on the page
 # --------------------------------------------------------------------------
 #
-# Converting the office's .doc originals left every numbered paragraph with a 1"
-# first-line indent, so the number sat an inch in and its text half an inch
-# further again. The originals put the number hard against the left margin and
-# let one tab carry the text to the first half-inch stop. This is a whole-page
-# defect rather than a wrong value, so nothing else in the suite would catch it
-# coming back — a re-converted template would simply drift out to the right.
+# One rule across every template: a numbered paragraph's first line is indented
+# half an inch, so the number sits at 0.5" and one tab carries its text to the
+# next stop. Converting the office's .doc originals had left them at 1", and the
+# originals themselves were inconsistent — the notice ran two levels, with its
+# rights list a further half-inch in. The office asked for the single rule.
+#
+# This is a whole-page defect rather than a wrong value, so nothing else in the
+# suite would catch it drifting: a re-converted template would simply come back
+# at 1" and every value in it would still be right.
 
 PARAGRAPH = re.compile(r'<w:p\b(?:(?!</w:p>).)*?</w:p>', re.S)
 FIRST_LINE = re.compile(r'<w:ind[^>]*w:firstLine="(\d+)"[^>]*/>')
 
-#: The notice's rights list is a sub-list under "PURSUANT TO 10 O.S. §40.4" and
-#: is a level further in than the allegations above it — number at 0.5", text at
-#: 1". Its original does the same, so it is allowed rather than flattened.
-SUB_LIST_INDENT = "720"
+#: Twentieths of a point: half an inch.
+NUMBERED_INDENT = "720"
 
 
 def paragraph_content(block: str) -> str:
@@ -126,12 +127,20 @@ def paragraph_content(block: str) -> str:
     )
 
 
+#: A numbered allegation, however it was typed. Matching only "1.<tab>" at the
+#: very start missed three real ways the office's documents write the same thing:
+#: tabs typed in front of the number to push it across, spaces instead of tabs
+#: after it, and both. Each of those hung differently on the page and none of
+#: them was caught until someone read a printed filing.
+NUMBERED = re.compile(r"[ \t]*\d+\.[ \t]")
+
+
 def numbered_paragraphs(path):
-    """Every "1.<tab>..." paragraph in a template, with its first-line indent."""
+    """Every numbered allegation in a template, with its first-line indent."""
     xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
     for block in PARAGRAPH.findall(xml):
         text = paragraph_content(block)
-        if not re.match(r"\d+\.\t", text):
+        if not NUMBERED.match(text):
             continue
         indent = FIRST_LINE.search(block)
         yield (indent.group(1) if indent else "0"), text
@@ -147,13 +156,28 @@ def template_paths(registry):
     return sorted(seen)
 
 
-def test_numbered_allegations_start_at_the_left_margin(registry):
+def test_every_numbered_paragraph_is_indented_half_an_inch(registry):
     offenders = []
     for path in template_paths(registry):
         for indent, text in numbered_paragraphs(path):
-            if indent not in ("0", SUB_LIST_INDENT):
+            if indent != NUMBERED_INDENT:
                 offenders.append(f"{path.name}: first-line {indent} on {text[:50]!r}")
-    assert not offenders, "numbered paragraphs indented off the margin:\n" + "\n".join(offenders)
+    assert not offenders, (
+        "numbered paragraphs not at a half-inch first-line indent:\n" + "\n".join(offenders)
+    )
+
+
+def test_a_numbered_paragraph_is_pushed_across_by_its_indent_alone(registry):
+    """Not by tabs typed in front of the number, and not by a space after it.
+
+    Both look right in the one document somebody checked and wrong beside the
+    allegations above them, because the indent and the typed padding add up."""
+    offenders = []
+    for path in template_paths(registry):
+        for _indent, text in numbered_paragraphs(path):
+            if not re.match(r"\d+\.\t", text):
+                offenders.append(f"{path.name}: {text[:50]!r}")
+    assert not offenders, "numbered paragraphs padded by hand:\n" + "\n".join(offenders)
 
 
 def test_every_template_has_numbered_paragraphs_to_check(registry):
@@ -162,3 +186,70 @@ def test_every_template_has_numbered_paragraphs_to_check(registry):
     counted = {path.name: len(list(numbered_paragraphs(path)))
                for path in template_paths(registry)}
     assert all(counted.values()), f"no numbered paragraphs found in: {counted}"
+
+
+# --------------------------------------------------------------------------
+# the caption, and rules on the page
+# --------------------------------------------------------------------------
+#
+# The caption used to be drawn with tab stops: each line tabbed out to a ")" and
+# once more to the case number. That lines up only while the text beside it stays
+# short — a long child's name pushes its own ")" to the next stop and breaks the
+# vertical rule, on the first page of a filing, where nobody re-reads it. It is
+# a 1x3 table now, which cannot drift.
+
+TABLE = re.compile(r'<w:tbl>.*?</w:tbl>', re.S)
+GRID_COL = re.compile(r'<w:gridCol\b')
+VISIBLE_RULE = re.compile(r'w:val="(single|double|dashed|dotted|thick|wave)"')
+BORDERS = re.compile(r'<w:tblBorders>.*?</w:tblBorders>|<w:tcBorders>.*?</w:tcBorders>', re.S)
+
+
+def tables(path):
+    xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+    return TABLE.findall(xml)
+
+
+def test_no_table_in_any_template_prints_a_rule(registry):
+    """These are layout tables — a caption, an address block, a receipt grid.
+    A printed border on any of them would be a box drawn across a court filing."""
+    offenders = []
+    for path in template_paths(registry):
+        for i, table in enumerate(tables(path)):
+            declared = "".join(BORDERS.findall(table))
+            if not declared:
+                offenders.append(f"{path.name} table {i}: declares no borders at all")
+            elif VISIBLE_RULE.search(declared):
+                offenders.append(f"{path.name} table {i}: has a visible rule")
+    assert not offenders, "\n".join(offenders)
+
+
+def test_every_caption_is_a_one_row_three_column_table(registry):
+    """One caption per document within a template — the packets hold several.
+
+    Matched on shape, one row by three columns, which is what tells a caption
+    apart from the notice's other three-column table (the receipt grid, which has
+    a row per addressee)."""
+    for path in template_paths(registry):
+        captions = [t for t in tables(path)
+                    if len(GRID_COL.findall(t)) == 3 and t.count("<w:tr>") == 1]
+        assert captions, f"{path.name} has no 1x3 caption table"
+        for table in captions:
+            assert ">)<" in table, f"{path.name}: caption has no parentheses column"
+
+
+def test_every_caption_indents_only_its_minor_child_line(registry):
+    """Half an inch on "A Minor Child." / "Minor Children.", nothing on the rest."""
+    offenders = []
+    for path in template_paths(registry):
+        for table in tables(path):
+            if len(GRID_COL.findall(table)) != 3 or table.count("<w:tr>") != 1:
+                continue
+            first_cell = table[table.index("<w:tc>"):table.index("</w:tc>")]
+            for block in PARAGRAPH.findall(first_cell):
+                text = paragraph_content(block).strip()
+                indent = FIRST_LINE.search(block)
+                wants = bool(re.match(r'(a\s+)?minor\s+child', text, re.I))
+                has = bool(indent and indent.group(1) == "720")
+                if wants != has:
+                    offenders.append(f"{path.name}: {text[:40]!r} indent={has}, expected {wants}")
+    assert not offenders, "\n".join(offenders)

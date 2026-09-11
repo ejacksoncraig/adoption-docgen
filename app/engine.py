@@ -27,10 +27,18 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import docx
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, InlineImage
 from jinja2 import UndefinedError
 
-from app.registry import OUTPUT_DIR, Document, Registry, jinja_env, string_variables, template_variables
+from app.registry import (
+    OUTPUT_DIR,
+    SIGNATURE_SETTING,
+    Document,
+    Registry,
+    jinja_env,
+    string_variables,
+    template_variables,
+)
 from app.schema import as_bool
 
 #: Strings that must never survive into a generated document.
@@ -162,6 +170,8 @@ def fill_gaps(
         fd = schema.fields.get(var)
         if fd is None or var in may_be_absent:
             continue
+        if fd.optional:
+            continue     # nothing to chase up: see FieldDef.optional
         if fd.depends_on and not schema.applicable(fd, values):
             continue
         # Name the question staff can actually answer, not the derived field:
@@ -195,6 +205,8 @@ def check_context(
         fd = schema.fields.get(var)
         if fd is None:
             problems.append(f"{{{{ {var} }}}} is not a field this system knows about")
+        elif fd.optional:
+            continue  # legitimately absent — the template guards it
         elif fd.depends_on and not schema.applicable(fd, values):
             continue  # e.g. tribe when ICWA does not apply — guarded inside the template
         elif fd.derived and var.startswith("attorney_"):
@@ -204,12 +216,42 @@ def check_context(
     return problems
 
 
+def with_signature(tpl: DocxTemplate, context: dict[str, Any]) -> dict[str, Any]:
+    """Swap the signature's *path* for an image bound to this template.
+
+    ``attorney_signature`` reaches the context as a path, because that is what a
+    derived ``attorney_`` field can carry. docxtpl needs an InlineImage instead,
+    and an InlineImage belongs to one DocxTemplate — it writes the picture into
+    that document's package — so it cannot be built once in build_context and
+    shared across the four documents of a filing. It is built here, per render.
+
+    A signature that has been deleted from config/ between startup and now is
+    dropped rather than raising: the templates guard the token, so the filing
+    comes out with its signature lines blank, which is the same document the
+    office would get by choosing not to sign it.
+    """
+    path = context.get(SIGNATURE_SETTING)
+    if not path:
+        return context
+    from app import signature
+
+    image_file = Path(str(path))
+    if not image_file.is_file():
+        return {k: v for k, v in context.items() if k != SIGNATURE_SETTING}
+    try:
+        width, height = signature.size_for(image_file.read_bytes())
+    except signature.SignatureError as exc:
+        raise RenderError([f"{image_file.name}: {problem}" for problem in exc.problems]) from exc
+    return {**context, SIGNATURE_SETTING: InlineImage(tpl, str(image_file), width=width, height=height)}
+
+
 def render_document(template_path: Path, context: dict[str, Any], out_path: Path) -> Path:
     """Render one template. Raises RenderError with a readable reason on failure."""
     if not template_path.exists():
         raise RenderError([f"template not found: {template_path}"])
 
     tpl = DocxTemplate(str(template_path))
+    context = with_signature(tpl, context)
     try:
         tpl.render(context, jinja_env())
     except UndefinedError as exc:
@@ -326,6 +368,7 @@ def generate(
     pdf: bool = False,
     output_root: Path | None = None,
     draft: bool = False,
+    sign: bool = True,
 ) -> GenerationResult:
     """Render every document for a variant into one dated folder.
 
@@ -337,6 +380,14 @@ def generate(
     named ``DRAFT - …``, so an incomplete filing cannot be mistaken for a finished
     one either on the page or in the folder. Answers that are *wrong* still stop
     generation; only absent ones are forgiven.
+
+    ``sign`` places the office's stored signature image on the attorney's
+    signature lines. It defaults to on and does nothing when no signature has
+    been uploaded, so a filing that is not signed — either because there is no
+    image, or because the office wants to sign this one by hand — comes out with
+    the printed line it has always had. A draft is never signed: a document that
+    still has ``[ Child — Date of birth ]`` on it is not one to put a signature
+    on, even a draft one.
     """
     today = today or date.today()
     variant = registry.variant(matter_id, variant_id)
@@ -350,6 +401,8 @@ def generate(
     context = registry.schema.build_context(
         values, variant.field_groups, registry.settings, today, allow_missing=draft
     )
+    if not sign or draft:
+        context.pop(SIGNATURE_SETTING, None)
 
     problems: list[str] = []
     gaps: list[str] = []

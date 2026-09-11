@@ -40,7 +40,12 @@ BASE: dict[str, Any] = {
     "deprived_action_county": "Sample",
     "foster_placement_date": "2024-09-21",
     "kinship": False,
-    "attorney_fees_summary": "Hourly Rate = $0.00; Total = $0.00 (sample)",
+    # The affidavit's figures. Obviously fake, and deliberately not round, so a
+    # total that stopped being computed from them would be visible in a golden file.
+    "attorney_hourly_rate": 300,
+    "attorney_hours": 13,
+    "filing_fee": 184.14,
+    "amended_certificate_fee": 40,
     "icwa_applies": True,
     "tribe": "Sample Nation",
 }
