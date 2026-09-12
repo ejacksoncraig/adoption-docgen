@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -94,7 +95,13 @@ COLLECT = ("webview", "pypdf", "docx", "docxtpl")
 #: live inside the archive and look missing from the outside.
 
 
-def run_pyinstaller(universal: bool = False) -> None:
+#: The hardened runtime's exceptions for a Python application. See the file
+#: itself for why each one is needed; notarisation fails without the runtime,
+#: and the runtime fails without these.
+ENTITLEMENTS = ROOT / "packaging" / "entitlements.plist"
+
+
+def run_pyinstaller(universal: bool = False, identity: str | None = None) -> None:
     separator = ";" if sys.platform == "win32" else ":"
     command = [
         sys.executable, "-m", "PyInstaller",
@@ -128,6 +135,12 @@ def run_pyinstaller(universal: bool = False) -> None:
         # fails here; see arch_report(), which checks the result rather than
         # trusting the flag.
         command += ["--target-arch", "universal2"]
+    if identity:
+        # PyInstaller signs the nested frameworks and dylibs on its way out,
+        # innermost first, which is the order codesign requires and the part
+        # that is tedious to get right by hand.
+        command += ["--codesign-identity", identity,
+                    "--osx-entitlements-file", str(ENTITLEMENTS)]
     command.append(str(ROOT / "app" / "main.py"))
     WORK.mkdir(parents=True, exist_ok=True)
     print(" ".join(command), "\n")
@@ -314,6 +327,99 @@ def copy_alongside(kept: dict[str, bytes]) -> None:
         print(f"  left {name}/ alone ({existing} item(s))" if existing else f"  created empty {name}/")
 
 
+# --------------------------------------------------------------------------
+# signing and notarisation
+# --------------------------------------------------------------------------
+#
+# Gatekeeper's "unidentified developer" refusal is not a warning to click past:
+# on a quarantined download it also triggers App Translocation, which mounts the
+# .app alone and leaves config/ and templates/ behind — and those live *beside*
+# the bundle by design. A signed, notarised, stapled build never enters that
+# state, which is the real reason to do this rather than to look official.
+
+
+def signing_identity(name: str | None) -> str | None:
+    """Resolve a Developer ID, and say plainly when there is not one.
+
+    Passing a name that is not in the keychain makes codesign fail deep inside
+    PyInstaller with an error about a missing identity and no hint that the
+    certificate was never installed, so the check happens here instead.
+    """
+    found = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"],
+                           capture_output=True, text=True).stdout
+    developer_ids = re.findall(r'"(Developer ID Application: [^"]+)"', found)
+
+    if name:
+        if any(name == identity or name in identity for identity in developer_ids):
+            return next(i for i in developer_ids if name == i or name in i)
+        print(f"No Developer ID Application certificate matching {name!r} in the keychain.",
+              file=sys.stderr)
+    elif len(developer_ids) == 1:
+        return developer_ids[0]
+    elif developer_ids:
+        print("More than one Developer ID; name the one to use with --sign:", file=sys.stderr)
+        for identity in developer_ids:
+            print(f"    --sign {identity!r}", file=sys.stderr)
+        return None
+    else:
+        print("No Developer ID Application certificate is installed.", file=sys.stderr)
+
+    print("", file=sys.stderr)
+    print("  Apple Developer Program membership, then Xcode > Settings > Accounts", file=sys.stderr)
+    print("  > Manage Certificates > + > Developer ID Application. Check it with:", file=sys.stderr)
+    print("      security find-identity -v -p codesigning", file=sys.stderr)
+    return None
+
+
+def verify_signature() -> str | None:
+    """Every nested binary signed, sealed, and carrying the hardened runtime."""
+    app = BUNDLE / f"{NAME}.app"
+    checked = subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)],
+                             capture_output=True, text=True)
+    if checked.returncode != 0:
+        return (checked.stderr or checked.stdout).strip()
+
+    shown = subprocess.run(["codesign", "--display", "--verbose=2", str(app)],
+                           capture_output=True, text=True)
+    detail = shown.stderr + shown.stdout
+    if "flags=0x10000(runtime)" not in detail.replace(" ", ""):
+        if "runtime" not in detail:
+            return "signed, but without the hardened runtime; notarisation will refuse it"
+    return None
+
+
+def notarise(keychain_profile: str) -> str | None:
+    """Send the app to Apple, wait for the answer, and staple it if accepted.
+
+    Stapling matters more than it sounds: without it the ticket is only online,
+    and the first launch on a machine with no network is refused.
+    """
+    app = BUNDLE / f"{NAME}.app"
+    archive = WORK / f"{NAME}.zip"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.unlink(missing_ok=True)
+
+    # ditto, not zip: it is the only archiver that preserves a bundle's symlinks
+    # and resource forks, and notarytool rejects one that has lost them.
+    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(archive)], check=True)
+
+    print(f"  submitting {archive.name} to Apple; this usually takes a few minutes")
+    submitted = subprocess.run(
+        ["xcrun", "notarytool", "submit", str(archive),
+         "--keychain-profile", keychain_profile, "--wait"],
+        capture_output=True, text=True)
+    output = submitted.stdout + submitted.stderr
+    print("    " + "\n    ".join(line for line in output.splitlines() if line.strip()))
+    if submitted.returncode != 0 or "status: Accepted" not in output:
+        return "Apple did not accept the build. `xcrun notarytool log <id> --keychain-profile ...` says why."
+
+    stapled = subprocess.run(["xcrun", "stapler", "staple", str(app)],
+                             capture_output=True, text=True)
+    if stapled.returncode != 0:
+        return (stapled.stderr or stapled.stdout).strip()
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -326,6 +432,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="macOS only: build one application that runs on both "
                              "Apple Silicon and Intel Macs. Slower and larger; use it "
                              "when you do not know which Macs will receive it.")
+    parser.add_argument("--sign", metavar="IDENTITY", nargs="?", const="",
+                        help="macOS only: sign with a Developer ID Application "
+                             "certificate and the hardened runtime. With no name, "
+                             "uses the one Developer ID in the keychain.")
+    parser.add_argument("--notarize", metavar="KEYCHAIN_PROFILE",
+                        help="macOS only: after signing, send the app to Apple and "
+                             "staple the ticket. Takes the name of a profile stored "
+                             "with `xcrun notarytool store-credentials`. Implies --sign.")
     arguments = parser.parse_args(argv)
     destination = arguments.install
     if arguments.universal and not MAC:
@@ -343,9 +457,19 @@ def main(argv: list[str] | None = None) -> int:
         print("Run this from the repository root.", file=sys.stderr)
         return 2
 
+    identity = None
+    if arguments.sign is not None or arguments.notarize:
+        if not MAC:
+            print("--sign and --notarize are macOS options.", file=sys.stderr)
+            return 2
+        identity = signing_identity(arguments.sign or None)
+        if identity is None:
+            return 2
+        print(f"signing as {identity}")
+
     kept = read_preserved()
 
-    run_pyinstaller(universal=arguments.universal)
+    run_pyinstaller(universal=arguments.universal, identity=identity)
     if not (STAGING / NAME).exists():
         print(f"PyInstaller did not produce {STAGING / NAME}", file=sys.stderr)
         return 1
@@ -353,6 +477,22 @@ def main(argv: list[str] | None = None) -> int:
     install_program()
     copy_alongside(kept)
     shutil.rmtree(STAGING, ignore_errors=True)
+
+    if identity:
+        problem = verify_signature()
+        if problem:
+            print("", file=sys.stderr)
+            print(f"The signature is not sound: {problem}", file=sys.stderr)
+            return 1
+        print("  signature verified, hardened runtime on")
+
+        if arguments.notarize:
+            problem = notarise(arguments.notarize)
+            if problem:
+                print("", file=sys.stderr)
+                print(problem, file=sys.stderr)
+                return 1
+            print("  notarised and stapled")
 
     problem = verify_bundle()
     if problem:

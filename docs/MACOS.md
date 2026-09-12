@@ -133,6 +133,57 @@ cd dist && ditto -c -k --sequesterRsrc --keepParent \
 Hand the recipient `docs/INSTALL.md` with it — a copy travels inside the folder
 as `READ ME FIRST.md`.
 
+## Distributing it properly: Developer ID
+
+Everything below about Gatekeeper, approving the app and App Translocation is
+what happens to an **unsigned** build. A signed, notarised, stapled one never
+enters any of it: it opens on a machine that has never seen it before, with no
+prompt and no translocation, which matters here more than it looks — under
+translocation the `.app` is mounted alone and `config/` and `templates/` are
+left behind, and those live beside the bundle by design.
+
+This needs three things that are not in this repository: an Apple Developer
+Program membership, a **Developer ID Application** certificate installed in the
+login keychain, and a notarytool credential profile.
+
+    # 1. confirm the certificate is installed
+    security find-identity -v -p codesigning
+    #    look for: "Developer ID Application: Your Name (TEAMID)"
+
+    # 2. store an App Store Connect credential once, by name
+    xcrun notarytool store-credentials adoption-docgen \
+        --apple-id you@example.com --team-id TEAMID \
+        --password <app-specific-password>
+
+    # 3. build, sign, notarise and staple in one go
+    python build.py --universal --notarize adoption-docgen
+
+`--sign` on its own signs and verifies without sending anything to Apple, which
+is the faster loop while getting the entitlements right. `build.py` refuses with
+an explanation rather than a codesign error when no certificate is installed, or
+when more than one Developer ID is present and it cannot tell which you meant.
+
+### Why the entitlements exist
+
+`packaging/entitlements.plist` grants two exceptions, both required by the
+hardened runtime that notarisation insists on, and neither optional for a Python
+application: `disable-library-validation`, because PyInstaller dlopen()s dozens
+of `.so` files that are not signed by this team, and
+`allow-unsigned-executable-memory`, because CPython writes and executes memory
+for its own bytecode. Nothing else is granted — the application opens no sockets
+and makes no outbound request.
+
+### What to hand over
+
+The whole `AdoptionFilingGenerator` folder, not the `.app` alone: `config/` and
+`templates/` sit beside it and the office edits them in place. Notarisation
+covers the `.app`; the data beside it is unsigned, which is correct — it is
+meant to be edited.
+
+Stapling is the step people skip. Without it the notarisation ticket is only
+available online, and the first launch on a machine with no network is refused.
+`build.py --notarize` staples.
+
 ### Gatekeeper will refuse it the first time
 
 An app that is not signed and notarised by an Apple Developer account gets:

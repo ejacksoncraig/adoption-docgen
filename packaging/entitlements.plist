@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the hardened runtime, which notarisation requires.
+
+  A Python application needs two exceptions that a compiled one does not, and
+  neither is optional here:
+
+  disable-library-validation
+      PyInstaller unpacks and dlopen()s dozens of .so files at startup. Library
+      validation refuses to load any of them, because they are not signed by the
+      same team as the main executable. Without this the app dies on launch with
+      no message a person could act on.
+
+  allow-unsigned-executable-memory
+      CPython writes and executes memory for its own bytecode. Refused, the
+      interpreter cannot start.
+
+  Nothing else is granted. The application opens no sockets and makes no
+  outbound request, so it asks for no network entitlement; it reads and writes
+  only the folder it was installed into.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>
