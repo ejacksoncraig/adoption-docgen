@@ -177,7 +177,7 @@ def test_the_worksheet_asks_every_question_the_variant_collects(registry, worksh
 def test_the_worksheet_carries_what_the_questionnaire_leaves_out(registry, tmp_path, worksheet_text):
     questionnaire = engine.document_text(
         intake.build_questionnaire(registry, PILOT_MATTER, PILOT_VARIANT, tmp_path / "q2.docx"))
-    for office_only in ("Filing county", "Case number", "Hourly rate", "Filing fee"):
+    for office_only in ("Filing county", "Case number", "Fees and costs to date"):
         assert office_only in worksheet_text, office_only
         assert office_only not in questionnaire, office_only
 

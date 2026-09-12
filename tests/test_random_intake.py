@@ -17,7 +17,6 @@ import pytest
 from app import engine, intake
 from app.schema import parse_date
 from conftest import PILOT_MATTER, PILOT_VARIANT
-from tests import fixtures
 
 
 def ready(registry):
@@ -134,47 +133,19 @@ def test_dates_are_in_the_past(registry, pilot_groups):
 
 
 def test_the_fee_summary_adds_up(registry, pilot_groups):
-    """The affidavit is sworn to, so its total has to be its parts added up.
-
-    It is computed rather than typed for exactly this reason — the figures and
-    the total used to be one free-text box, where they could drift apart with
-    nothing to notice."""
+    """It is printed verbatim into the Affidavit of Expenditures. Figures that
+    contradict each other would be noticed by whoever is being shown the program."""
     values = intake.random_values(registry.schema, pilot_groups)
-    context = registry.schema.build_context(values, pilot_groups, {}, date.today())
-    summary = context["expenditures_summary"]
+    summary = values["attorney_fees_summary"]
 
-    hours = float(re.search(r"Total Hours = ([\d,.]+) x", summary).group(1).replace(",", ""))
+    hours = float(re.search(r"Total Hours = ([\d.]+)", summary).group(1))
     rate = float(re.search(r"Hourly Rate = \$([\d,.]+)", summary).group(1).replace(",", ""))
-    fees = float(re.search(r"x \$[\d,.]+ = \$([\d,.]+);", summary).group(1).replace(",", ""))
-    filing = float(re.search(r"Filing Fee = \$([\d,.]+);", summary).group(1).replace(",", ""))
-    certificate = float(re.search(r"Amended Birth Certificate = \$([\d,.]+);", summary).group(1).replace(",", ""))
+    fees = float(re.search(r"= \$([\d,.]+)\.00; Filing Fee", summary).group(1).replace(",", ""))
     # anchored on the cents, so the sentence's full stop is not read as part of it
     total = float(re.search(r"Total = \$([\d,]+\.\d{2})", summary).group(1).replace(",", ""))
 
-    assert hours == values["attorney_hours"]
-    assert rate == values["attorney_hourly_rate"]
-    assert fees == pytest.approx(hours * rate)
-    assert total == pytest.approx(fees + filing + certificate)
-
-
-def test_a_fee_of_nothing_is_left_out_of_the_affidavit(registry, pilot_groups):
-    """A line reading "Amended Birth Certificate = $0.00" is not a cost, it is
-    an absence, and it should not be sworn to as one."""
-    values = {**fixtures.BASE, "amended_certificate_fee": 0, "filing_fee": 0}
-    summary = registry.schema.build_context(
-        values, pilot_groups, {}, date.today())["expenditures_summary"]
-
-    assert "Amended Birth Certificate" not in summary
-    assert "Filing Fee" not in summary
-    assert summary.endswith("Total = $3,900.00.")
-
-
-def test_the_typed_summary_overrides_the_computed_one(registry, pilot_groups):
-    """Left blank, the sentence is built. Filled in, it is printed verbatim —
-    the escape hatch for a matter the four figures cannot describe."""
-    values = {**fixtures.BASE, "attorney_fees_summary": "Waived in full."}
-    context = registry.schema.build_context(values, pilot_groups, {}, date.today())
-    assert context["attorney_fees_summary"] == "Waived in full."
+    assert hours * rate == fees
+    assert total == pytest.approx(fees + 184.14 + 40)
 
 
 # --------------------------------------------------------------------------

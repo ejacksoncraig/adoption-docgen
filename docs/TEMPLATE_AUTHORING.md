@@ -132,28 +132,6 @@ A single field can opt out the same way, when the rest of its group does belong
 on the questionnaire. `attorney_fees_summary` sits in the `dhs` group — the
 family answers the rest of that group, but not the fee schedule.
 
-## Money in the Affidavit of Expenditures
-
-The affidavit is sworn to, so its total has to be its parts added up rather than
-a fifth number somebody typed. Four answers — `attorney_hourly_rate`,
-`attorney_hours`, `filing_fee`, `amended_certificate_fee` — and the sentence is
-built by the `expenditures summary` derivation:
-
-```
-Hourly Rate = $300.00; Total Hours = 13.00 x $300.00 = $3,900.00;
-Filing Fee = $184.14; Amended Birth Certificate = $40.00; Total = $4,124.14.
-```
-
-A fee of 0 drops its line: "Amended Birth Certificate = $0.00" is not a cost, it
-is an absence, and it should not be sworn to as one.
-
-The template still reads `{{ attorney_fees_summary }}` and did not change.
-That field is now optional with `"default": "{{ expenditures_summary | default('', true) }}"`,
-so leaving it blank prints the computed sentence and filling it in overrides the
-whole thing — the escape hatch for a matter the four figures cannot describe.
-The `| default('', true)` matters: without it, drafting an intake before the
-figures are known raises instead of marking the gap.
-
 ## The caption is a table
 
 Every caption in every template — 32 of them, since a packet holds several
@@ -359,24 +337,25 @@ Two things about that document differ from what the office typed, on purpose:
 
 ### What the notice asks for that nothing else does
 
-Four fields in the `icwa` group exist only for this document, and all four are
-optional, because a notice is usually drafted before the hearing is set and
-always before it is mailed:
+Three fields in the `icwa` group exist only for this document, and all three are
+optional, because a notice is usually drafted before the hearing is set:
 
 | Field | Fills |
 |---|---|
 | `petition_hearing_date` | ¶1, "will be heard on the 18th day of June, 2026" |
 | `courthouse_city` | ¶1, "in the District Courthouse at Newkirk, Kay County" |
 | `judge_name` | ¶1, "before the Honorable Judge …" |
-| `notice_mailing_date` | the Certificate of Service, "on the 4th day of May, 2026" |
 
 Each has a `default` of the underscores the office's own form prints, so leaving
 one blank gives back the line to fill in by hand rather than a gap. `judge_name`
-is the one that is often left blank on purpose; the other three are worth asking
-for. `courthouse_city` is asked rather than derived from `county` because a
+is the one that is often left blank on purpose; the other two are worth asking
+for. The date the notice is posted is *not* asked for: it was, briefly, and the
+office asked for blanks back, because a date printed there would be the date the
+filing was prepared rather than the date it was mailed, and the certificate
+swears to the second of those. `courthouse_city` is asked rather than derived from `county` because a
 county seat is not the county's name — Kay County's courthouse is in Newkirk.
 
-All four are marked `"questionnaire": false`. They are the office's to answer,
+All three are marked `"questionnaire": false`. They are the office's to answer,
 not the adoptive family's.
 
 ## The office's own details
@@ -504,16 +483,14 @@ Outstanding:
       block prints one fixed address, which is wrong the day the office moves or
       a second attorney signs. Note `{{ attorney_short_name }}` is *already* used
       in the decree, so `settings.json` must be filled in before any real filing.
-- [x] Affidavit of Expenditures had hourly rate, hours, filing fee, amended birth
-      certificate fee and the total as one free-text box, where the total could
-      drift from its parts with nothing to notice. The four figures are now
-      separate answers and the sentence is built from them by the
-      `expenditures summary` derivation in `app/schema.py`, which adds the total
-      up. A fee entered as 0 drops its line rather than swearing to $0.00.
-      `attorney_fees_summary` survives as an override: left blank it prints the
-      computed sentence, filled in it is printed verbatim. Covered by
-      `test_the_fee_summary_adds_up` and its two neighbours in
-      `tests/test_random_intake.py`.
+- [ ] Affidavit of Expenditures has hourly rate ($300), hours (12.00), filing fee
+      ($184.14), amended birth certificate fee ($40) and total ($3,824.14) as
+      literal text. Filing fees vary by county and change over time. The total is
+      the dangerous one — it must be derived from the parts, not typed, or the
+      three will drift apart. This was built once, computing the total from four
+      separate answers, and the office preferred the single box they could write
+      in freehand; the computed version is in the history at commit 3bdb556 if it
+      is ever wanted back.
 - [ ] `0all_inclusive_Step_parent.doc` contains two real minors' names and DOBs
       and a real county from a prior case. **Scrub before this file is committed
       anywhere.**

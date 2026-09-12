@@ -189,15 +189,16 @@ def test_the_birth_parents_of_a_stepparent_filing_are_the_petitioner_and_the_oth
 # --------------------------------------------------------------------------
 
 
-def test_the_mailing_date_prints_blanks_until_the_notice_goes_out(registry, tmp_path, today):
+def test_the_mailing_date_is_left_blank_to_write_in(registry, tmp_path, today):
+    """The office fills this in after the notice has actually been posted, so
+    the certificate carries blanks rather than a date the intake guessed at.
+
+    This was an answer on the intake for a while and the office asked for it
+    back as blanks — a date printed here would be the date the filing was
+    prepared, not the date it was mailed, and the certificate swears to the
+    second of those."""
     text = render(registry, fixtures.BASE, tmp_path, today, template=NOTICE)
-    assert "return receipt requested, on the ____ day of __________, 20____," in text
-
-
-def test_the_mailing_date_is_filled_in_when_it_is_known(registry, tmp_path, today):
-    values = fixtures.values(notice_mailing_date="2026-05-04")
-    text = render(registry, values, tmp_path, today, template=NOTICE)
-    assert "return receipt requested, on the 4th day of May, 2026, and receipt" in text
+    assert "return receipt requested, on the ______ day of ___________, 20___," in text
 
 
 # --------------------------------------------------------------------------

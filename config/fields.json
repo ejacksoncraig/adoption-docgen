@@ -151,10 +151,6 @@
       "required": false, "depends_on": "icwa_applies", "questionnaire": false,
       "default": "________________",
       "help": "Optional. Fills \u00b61 of the Notice to Tribe after \"before the Honorable Judge\". Left blank it prints a line to write on." },
-    { "id": "notice_mailing_date", "group": "icwa", "type": "date", "label": "Date the notice is mailed",
-      "required": false, "depends_on": "icwa_applies", "questionnaire": false, "format": "long_ordinal",
-      "default": "____ day of __________, 20____",
-      "help": "The date the notice goes out by registered mail, return receipt requested. Fills the Certificate of Service on page 2. Leave blank to print the blanks and date it by hand." },
 
     { "id": "other_parent_name", "group": "stepparent", "type": "text", "label": "Other biological parent's name",
       "required": true, "help": "The non-petitioner biological parent — used only in step-parent matters." },
@@ -170,20 +166,6 @@
       "required": true, "options": ["consents", "terminated", "excused_nonsupport"],
       "help": "consents = will sign a written consent. terminated = rights already terminated by court order. excused_nonsupport = consent not required under 10 O.S. 7505-4.2 due to a year of willful non-support/non-contact." },
 
-    { "id": "attorney_hourly_rate", "group": "dhs", "type": "number", "label": "Hourly rate",
-      "required": true, "questionnaire": false,
-      "help": "The office's rate, in dollars. Customarily 300." },
-    { "id": "attorney_hours", "group": "dhs", "type": "number", "label": "Hours worked to date",
-      "required": true, "questionnaire": false,
-      "help": "Hours, to two decimal places — 13.5 prints as 13.50." },
-    { "id": "filing_fee", "group": "dhs", "type": "number", "label": "Filing fee",
-      "required": true, "questionnaire": false,
-      "help": "Varies by county and changes over time. Customarily 184.14. Enter 0 and the line is left out of the affidavit altogether." },
-    { "id": "amended_certificate_fee", "group": "dhs", "type": "number", "label": "Amended birth certificate fee",
-      "required": true, "questionnaire": false,
-      "help": "Customarily 40. Enter 0 and the line is left out of the affidavit altogether." },
-    { "id": "expenditures_summary", "group": "dhs", "type": "text", "derived": true,
-      "help": "The costs-and-expenses sentence, built from the four figures above with the total added up rather than typed." },
     { "id": "concurrent_jurisdiction", "group": "extras", "type": "bool",
       "label": "Also apply for concurrent jurisdiction?", "required": false, "questionnaire": false,
       "help": "Generates the Application and Order for Concurrent Jurisdiction, which asks the juvenile court to let the adoption be heard in the petitioners' own county." },
@@ -207,9 +189,8 @@
       "options": ["Adair", "Alfalfa", "Atoka", "Beaver", "Beckham", "Blaine", "Bryan", "Caddo", "Canadian", "Carter", "Cherokee", "Choctaw", "Cimarron", "Cleveland", "Coal", "Comanche", "Cotton", "Craig", "Creek", "Custer", "Delaware", "Dewey", "Ellis", "Garfield", "Garvin", "Grady", "Grant", "Greer", "Harmon", "Harper", "Haskell", "Hughes", "Jackson", "Jefferson", "Johnston", "Kay", "Kingfisher", "Kiowa", "Latimer", "LeFlore", "Lincoln", "Logan", "Love", "Major", "Marshall", "Mayes", "McClain", "McCurtain", "McIntosh", "Murray", "Muskogee", "Noble", "Nowata", "Okfuskee", "Oklahoma", "Okmulgee", "Osage", "Ottawa", "Pawnee", "Payne", "Pittsburg", "Pontotoc", "Pottawatomie", "Pushmataha", "Roger Mills", "Rogers", "Seminole", "Sequoyah", "Stephens", "Texas", "Tillman", "Tulsa", "Wagoner", "Washington", "Washita", "Woods", "Woodward"],
       "help": "Named in the body of the Concurrent Jurisdiction application and order — the court being asked to take the adoption. Left blank it follows the filing county, which is the usual case." },
 
-    { "id": "attorney_fees_summary", "group": "dhs", "type": "text", "label": "Fees and costs to date, in words",
-      "required": false, "questionnaire": false, "multiline": true,
-      "default": "{{ expenditures_summary | default('', true) }}",
-      "help": "Leave blank and the Affidavit of Expenditures states the four figures above, adding them up for you. Fill this in only to override that sentence wholesale — anything typed here is printed verbatim and nothing checks that it totals correctly." }
+    { "id": "attorney_fees_summary", "group": "dhs", "type": "text", "label": "Fees and costs to date",
+      "required": true, "questionnaire": false,
+      "help": "Printed verbatim in the Affidavit of Expenditures, which is filed in every DHS adoption — so it is required. E.g. 'Hourly Rate = $300.00; Total Hours = 12.00 x $300.00 = $3,600.00; Filing Fee = $184.14; Total = $3,824.14.'" }
   ]
 }

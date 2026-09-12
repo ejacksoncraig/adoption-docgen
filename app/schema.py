@@ -296,56 +296,7 @@ DERIVATIONS: tuple[Derivation, ...] = (
         source=lambda m: None,
         compute=lambda m, ctx, today: _from_settings(m.string, ctx),
     ),
-    Derivation(
-        name="expenditures summary",
-        pattern=re.compile(r"^expenditures_summary$"),
-        source=lambda m: tuple(EXPENDITURES),
-        compute=lambda m, ctx, today: _expenditures(ctx),
-    ),
 )
-
-
-#: The parts of the Affidavit of Expenditures sentence, in the order it reads
-#: them. The total is the reason this is computed rather than typed: hourly rate,
-#: hours and the fees are all things a person can restate, and a total that has
-#: drifted from its parts is a number sworn to in an affidavit that does not add
-#: up. See _expenditures().
-EXPENDITURES = ("attorney_hourly_rate", "attorney_hours", "filing_fee",
-                "amended_certificate_fee")
-
-
-def money(amount: float) -> str:
-    """1234.5 -> '$1,234.50'. Court filings state cents, and group thousands."""
-    return f"${amount:,.2f}"
-
-
-def _expenditures(ctx: dict[str, Any]) -> str:
-    """The costs-and-expenses sentence, built from its parts.
-
-    Returns "" when any part is missing rather than guessing at a total. That
-    happens only while drafting, where the gap is marked and named like any other
-    unanswered question; a finished filing has all four.
-    """
-    try:
-        rate, hours, filing, certificate = (float(ctx[name]) for name in EXPENDITURES)
-    except (KeyError, TypeError, ValueError):
-        return ""
-
-    fee = rate * hours
-    parts = [
-        f"Hourly Rate = {money(rate)}",
-        f"Total Hours = {hours:,.2f} x {money(rate)} = {money(fee)}",
-    ]
-    total = fee
-    # A fee of nothing is not a line in the affidavit, it is an absence.
-    if filing:
-        parts.append(f"Filing Fee = {money(filing)}")
-        total += filing
-    if certificate:
-        parts.append(f"Amended Birth Certificate = {money(certificate)}")
-        total += certificate
-    parts.append(f"Total = {money(total)}")
-    return "; ".join(parts) + "."
 
 
 #: What a gender or a parental role implies about pronouns. Keyed on the values a
