@@ -369,6 +369,22 @@ in `fields.json` as a derived field in the `case` group.
 refuses to generate and names the missing setting. That is deliberate: a decree
 that names no attorney of record is worse than one that fails to render.
 
+## The petitioners' names are not set apart
+
+Every petition used to set `{{ petitioner1_name }}` and `{{ petitioner2_name }}`
+in bold wherever they appeared, which lifted the name out of the sentence it
+belongs to for no reason anybody could give. They read as ordinary text now.
+
+The exception is a paragraph that is bold from end to end — the decree's two
+ordering paragraphs. There the bold belongs to the paragraph rather than to the
+name, and taking it off the name alone would punch a hole in it. That is the
+rule `test_a_petitioners_name_is_not_bold_in_the_middle_of_a_sentence` and its
+neighbour in `tests/test_render.py` enforce.
+
+One is deliberately left: the Consent's "COMES NOW, the Oklahoma Department of
+Human Services …" still bolds both names. It is not a petition or a decree and
+was outside what was asked for.
+
 ## The attorney's signature
 
 The office uploads one signature image under **Office details**. It is stored
@@ -414,6 +430,27 @@ and will not do so needs to be a rule rather than a convention.
 The size is fixed in `app/signature.py`: scaled to fit 12 mm tall by 60 mm wide,
 aspect kept. Height alone is not enough — a signature scanned as a long thin
 strip would print four inches wide and run off the end of its line.
+
+### On the line, not in it
+
+docxtpl only knows how to place a picture *inline*, which makes the signature a
+character on the line: the line grows to the height of the image, the block
+opens up around it, and the printed rule ends up somewhere under the middle of
+the attorney's name. `FloatingImage` in `app/signature.py` anchors it instead,
+with `wrapNone`, so it takes no room in the text flow at all — a signed filing
+is the unsigned one with ink added, laid out identically.
+
+It is positioned `relativeFrom="character"` horizontally, so it starts wherever
+the token sits, and `relativeFrom="line"` vertically lifted by its own height
+less a baseline's worth, so its foot lands on the rule and its descenders hang
+under it.
+
+That is why the rule now prints unconditionally — `{% if attorney_signature %}{{ attorney_signature }}{% endif %}____`
+rather than an either/or. The signature lies over the line rather than replacing it.
+
+The attribute list on `wp:anchor` and the order of its children are both fixed
+by the schema, and Word will not open a file that gets either wrong. Both are
+asserted in `tests/test_signature.py`.
 
 ## Procedure for a new template
 

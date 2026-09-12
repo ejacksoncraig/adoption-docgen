@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import docx
@@ -362,3 +363,59 @@ def test_a_conversion_profile_does_not_outlive_the_conversion(monkeypatch, tmp_p
 
     left = Path(url2pathname(urlparse(captured["profile"]).path))
     assert not left.exists()
+
+
+# --------------------------------------------------------------------------
+# the petitioners' names are not set apart
+# --------------------------------------------------------------------------
+
+
+def _bold_name_paragraphs(path):
+    """Paragraphs where a petitioner's name is bold, and whether the whole
+    paragraph is."""
+    import zipfile
+
+    paragraph = re.compile(r'<w:p\b(?:(?!</w:p>).)*?</w:p>', re.S)
+    run = re.compile(r'<w:r>(?:(?!</w:r>).)*?</w:r>', re.S)
+    name = re.compile(r'\{\{\s*petitioner[12]_name\s*\}\}')
+
+    def text_of(one):
+        return "".join(
+            "\t" if m.group(0).startswith("<w:tab") else m.group(1)
+            for m in re.finditer(r'<w:tab\s*/>|<w:t(?:\s[^>]*)?>(.*?)</w:t>', one, re.S))
+
+    xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+    for block in paragraph.findall(xml):
+        speaking = [r for r in run.findall(block) if text_of(r).strip()]
+        if not any(name.search(text_of(r)) and "<w:b/>" in r for r in speaking):
+            continue
+        yield all("<w:b/>" in r for r in speaking), text_of(speaking[0])
+
+
+PETITIONS = [
+    "dhs/dhs_petition_decree_1p_1c.docx",
+    "dhs/dhs_petition_decree_2p_1c.docx",
+    "dhs/dhs_petition_1p_2c.docx",
+    "dhs/dhs_petition_2p_2c.docx",
+    "stepparent/step_petition_1c.docx",
+    "stepparent/step_petition_2c.docx",
+]
+
+
+@pytest.mark.parametrize("template", PETITIONS)
+def test_a_petitioners_name_is_not_bold_in_the_middle_of_a_sentence(registry, template):
+    """It used to be, in every petition, which set the name apart from the
+    sentence it belongs to for no reason anybody could give."""
+    offenders = [opening for whole, opening in _bold_name_paragraphs(
+        registry.template_path(template)) if not whole]
+    assert not offenders, "\n".join(offenders)
+
+
+def test_a_wholly_bold_paragraph_keeps_its_bold(registry):
+    """The decree's two ordering paragraphs are bold from end to end. There the
+    bold belongs to the paragraph, not the name, and lifting it off the name
+    alone would punch a hole in it."""
+    whole = [opening for is_whole, opening in _bold_name_paragraphs(
+        registry.template_path("dhs/dhs_petition_decree_1p_1c.docx")) if is_whole]
+    assert len(whole) == 2
+    assert all(t.startswith("IT IS ") for t in whole), whole

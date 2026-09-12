@@ -18,11 +18,13 @@ someone is trying to generate a filing.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 from docx.image.image import Image
 from docx.shared import Mm
+from docxtpl import InlineImage
 
 from app.registry import CONFIG_DIR
 
@@ -154,3 +156,59 @@ def describe(config: Path | None = None) -> dict[str, Any]:
         "pixels": pixels,
         "kilobytes": max(1, len(blob) // 1024),
     }
+
+
+# --------------------------------------------------------------------------
+# putting it on the line rather than in it
+# --------------------------------------------------------------------------
+
+#: Roughly where the baseline sits inside a 12pt line, in EMU. The signature is
+#: lifted by its own height less this, so its foot lands on the printed line and
+#: its descenders hang under it, the way a pen leaves them.
+BASELINE_EMU = 140_000
+
+#: An anchored drawing with no wrapping takes no room in the text flow, so the
+#: line it sits over keeps the height it would have had if nobody had signed.
+#: The attribute list and the order of the children are both fixed by the
+#: schema; Word will not open a file that gets either wrong.
+_ANCHOR = (
+    '<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+    ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"'
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    ' distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240"'
+    ' behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">'
+    '<wp:simplePos x="0" y="0"/>'
+    '<wp:positionH relativeFrom="character"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+    '<wp:positionV relativeFrom="line"><wp:posOffset>{lift}</wp:posOffset></wp:positionV>'
+    "{extent}"
+    '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
+    "<wp:wrapNone/>"
+    "{body}"
+    "</wp:anchor>"
+)
+
+
+class FloatingImage(InlineImage):
+    """The signature, resting on the line instead of sitting in the text.
+
+    docxtpl only knows how to put a picture *inline*, which makes it a character
+    on the line: the line grows to the height of the image, the signature block
+    opens up, and the printed rule ends up somewhere under the middle of the
+    name. Anchoring it with no wrapping takes it out of the flow entirely — the
+    block keeps the height it had unsigned, and the signature lies over the rule.
+    """
+
+    def _insert_image(self) -> str:
+        inline = self.tpl.current_rendering_part.new_pic_inline(
+            self.image_descriptor, self.width, self.height
+        ).xml
+        extent = re.search(r"<wp:extent[^>]*/>", inline).group(0)
+        height = int(re.search(r'cy="(\d+)"', extent).group(1))
+        body = inline[inline.index("<wp:docPr"):inline.rindex("</wp:inline>")]
+
+        anchor = _ANCHOR.format(lift=BASELINE_EMU - height, extent=extent, body=body)
+        return (
+            "</w:t></w:r><w:r><w:drawing>%s</w:drawing></w:r><w:r>"
+            '<w:t xml:space="preserve">' % anchor
+        )

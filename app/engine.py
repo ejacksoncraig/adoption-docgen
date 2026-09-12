@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import docx
-from docxtpl import DocxTemplate, InlineImage
+from docxtpl import DocxTemplate
 from jinja2 import UndefinedError
 
 from app.registry import (
@@ -242,7 +242,9 @@ def with_signature(tpl: DocxTemplate, context: dict[str, Any]) -> dict[str, Any]
         width, height = signature.size_for(image_file.read_bytes())
     except signature.SignatureError as exc:
         raise RenderError([f"{image_file.name}: {problem}" for problem in exc.problems]) from exc
-    return {**context, SIGNATURE_SETTING: InlineImage(tpl, str(image_file), width=width, height=height)}
+    return {**context,
+            SIGNATURE_SETTING: signature.FloatingImage(
+                tpl, str(image_file), width=width, height=height)}
 
 
 def render_document(template_path: Path, context: dict[str, Any], out_path: Path) -> Path:

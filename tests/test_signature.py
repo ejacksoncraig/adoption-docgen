@@ -272,3 +272,57 @@ def test_describe_reports_what_the_screen_needs(config):
     assert described["present"] is True
     assert described["pixels"] == "900 × 260"
     assert described["name"] == "signature.png"
+
+
+# --------------------------------------------------------------------------
+# on the line, not in it
+# --------------------------------------------------------------------------
+#
+# docxtpl only knows how to place a picture inline, which makes the signature a
+# character on the line: the line grows to the height of the image, the block
+# opens up, and the printed rule ends up under the middle of the name. Anchoring
+# it with no wrapping takes it out of the text flow, so the block keeps the
+# height it has unsigned and the signature lies over the rule.
+
+from docx import Document  # noqa: E402
+from docx.oxml.ns import qn  # noqa: E402
+
+
+def test_the_signature_is_anchored_rather_than_inline(signed_registry, tmp_path, today):
+    result = generate(signed_registry, tmp_path / "out", today)
+    drawings = 0
+    for generated in result.files:
+        document = Document(str(generated.path))
+        for paragraph in document.paragraphs:
+            for _ in paragraph._p.findall(".//" + qn("w:drawing")):
+                drawings += 1
+            assert not paragraph._p.findall(".//" + qn("wp:inline")), \
+                "an inline picture would grow the line it sits on"
+    assert drawings >= 4
+
+
+def test_the_printed_rule_stays_under_the_signature(signed_registry, tmp_path, today):
+    """The line prints whether or not anybody has signed, so a signed filing and
+    an unsigned one are the same document with ink added."""
+    signed = generate(signed_registry, tmp_path / "signed", today)
+    notice = next(f for f in signed.files if f.template.endswith("notice_to_tribe.docx"))
+    assert "By_________________________" in engine.document_text(notice.path)
+
+
+def test_the_signature_hangs_above_the_line_it_sits_on(signed_registry, tmp_path, today):
+    """Lifted by its own height less a baseline's worth, so its foot lands on the
+    rule rather than the whole picture floating above or below it."""
+    result = generate(signed_registry, tmp_path / "out", today)
+    document = Document(str(next(f.path for f in result.files
+                                 if f.template.endswith("notice_to_tribe.docx"))))
+    anchors = document.element.body.findall(".//" + qn("wp:anchor"))
+    assert anchors
+
+    for anchor in anchors:
+        assert anchor.findall(qn("wp:wrapNone")), "wrapping would push the text aside"
+        vertical = anchor.find(qn("wp:positionV"))
+        assert vertical.get("relativeFrom") == "line"
+        lift = int(vertical.find(qn("wp:posOffset")).text)
+        height = int(anchor.find(qn("wp:extent")).get("cy"))
+        assert lift < 0, "a signature that is not lifted sits below its own line"
+        assert lift == signature.BASELINE_EMU - height
