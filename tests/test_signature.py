@@ -326,3 +326,27 @@ def test_the_signature_hangs_above_the_line_it_sits_on(signed_registry, tmp_path
         height = int(anchor.find(qn("wp:extent")).get("cy"))
         assert lift < 0, "a signature that is not lifted sits below its own line"
         assert lift == signature.BASELINE_EMU - height
+
+
+def test_every_place_the_attorney_signs_has_a_line_to_sign_on(registry):
+    """"By:" with nothing after it is not somewhere a pen can go — which is what
+    the petitions offered, while the packet had a proper rule and two other
+    templates had six underlined tabs standing in for one. Tabs only draw a line
+    if the tab stops happen to be somewhere sensible, and in the pilot petition
+    they were not: the stop at 720 was cleared and the only one left was at -720."""
+    paragraph = re.compile(r'<w:p\b(?:(?!</w:p>).)*?</w:p>', re.S)
+    offenders = []
+
+    for matter in registry.matters:
+        for variant in matter.variants:
+            for document in variant.all_documents():
+                path = registry.template_path(document.template)
+                xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8")
+                for block in paragraph.findall(xml):
+                    text = "".join(re.findall(r'<w:t[^>]*>(.*?)</w:t>', block, re.S))
+                    if "attorney_signature" not in text:
+                        continue
+                    if "_" * 10 not in text:
+                        offenders.append(f"{path.name}: {text.strip()[:60]!r}")
+
+    assert not offenders, "signature spots with no line:\n" + "\n".join(sorted(set(offenders)))
