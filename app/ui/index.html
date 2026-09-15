@@ -200,8 +200,13 @@
 
   /* ---- searchable select: a text box with a filtered list beneath it ---- */
   .field.combo { position: relative; }
+  /* Pinned to the viewport rather than to the field, and placed by
+     positionComboList(). Cards clip their contents (overflow: hidden, for the
+     rounded header) and main scrolls, so a list positioned inside the field was
+     cut off by whichever of those it reached first — which is what happened to
+     the last group on the intake, where the list opens closest to the bottom. */
   .combo-list {
-    position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; z-index: 30;
+    position: fixed; z-index: 60;
     background: #fff; border: 1px solid var(--line); border-radius: var(--r);
     box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; padding: 4px;
   }
@@ -1184,6 +1189,9 @@ async function loadForm(keepValues) {
 function renderForm() {
   const host = $("#formGroups");
   host.replaceChildren();
+  // Each searchable field's list lives on <body> so that no card can clip it,
+  // which also means emptying #formGroups does not take them with it.
+  for (const stale of document.querySelectorAll(".combo-list")) stale.remove();
 
   for (const group of state.spec.groups) {
     if (!group.fields.length) continue;
@@ -1316,6 +1324,29 @@ function renderSearchableSelect(field, wrap, label) {
     updateTestDataButton();
   }
 
+  /** Put the list against the field, above it if it would run off the bottom. */
+  function positionComboList() {
+    const box = input.getBoundingClientRect();
+    const gap = 4;
+    list.style.width = box.width + "px";
+    list.style.left = box.left + "px";
+    // Measured, not assumed: the list is as tall as its contents up to its
+    // max-height, and "does it fit" has to be asked of the real height.
+    list.style.top = "0px";
+    list.style.maxHeight = "";
+    const height = list.offsetHeight;
+    const below = window.innerHeight - box.bottom - gap;
+    const above = box.top - gap;
+
+    if (height <= below || below >= above) {
+      list.style.top = box.bottom + gap + "px";
+      list.style.maxHeight = Math.min(220, Math.max(80, below)) + "px";
+    } else {
+      list.style.maxHeight = Math.min(220, Math.max(80, above)) + "px";
+      list.style.top = box.top - gap - Math.min(height, above) + "px";
+    }
+  }
+
   function open() {
     const query = input.value.trim().toLowerCase();
     const matches = query ? field.options.filter((o) => o.toLowerCase().includes(query)) : field.options;
@@ -1339,8 +1370,15 @@ function renderSearchableSelect(field, wrap, label) {
       }
     }
     list.hidden = false;
+    positionComboList();
     input.setAttribute("aria-expanded", "true");
     active = -1;
+  }
+
+  // Fixed positioning does not follow the field on its own, so anything that
+  // moves the field has to move the list with it.
+  for (const [target, event] of [[window, "resize"], [window, "scroll"]]) {
+    target.addEventListener(event, () => { if (!list.hidden) positionComboList(); }, true);
   }
 
   input.addEventListener("input", () => {
@@ -1367,7 +1405,8 @@ function renderSearchableSelect(field, wrap, label) {
   });
 
   wrap.classList.add("combo");
-  wrap.append(label, input, list);
+  wrap.append(label, input);
+  document.body.append(list);
   if (field.help) wrap.append(el("p", { className: "help", textContent: field.help }));
   return wrap;
 }
