@@ -29,7 +29,9 @@ from typing import Any, Iterable
 
 import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Emu, Inches, Pt
 
 from app import __version__
 from app.registry import INTAKE_DIR, OUTPUT_DIR, Registry
@@ -161,37 +163,114 @@ def list_intakes(directory: Path | None = None) -> list[dict[str, Any]]:
 # the paper questionnaire
 # --------------------------------------------------------------------------
 
-_ANSWER_LINE = "_" * 58
+# --------------------------------------------------------------------------
+# the one-page form
+# --------------------------------------------------------------------------
+#
+# Modelled on the sheet the office already used: every answer on one page, two
+# to a line, each on a rule you can write along. A question per block with its
+# help text underneath is easier to read and runs to four pages, which is four
+# pages to carry into a meeting and four to type back from. This is the shape
+# that gets used.
 
-_INSTRUCTIONS = (
-    "Please answer every question below as completely as you can, then return "
-    "this form to our office. Where a question does not apply, write N/A rather "
-    "than leaving it blank, so we know it was not overlooked. Dates should be "
-    "written as month/day/year."
-)
+#: Body size. 12pt is the filing's size, not a form's; at 10pt the whole intake
+#: fits on one side of one sheet with room left to write.
+FORM_PT = Pt(10)
+
+#: Half-inch page margins all round, which is what buys the extra rows.
+FORM_MARGIN_IN = 0.5
+
+#: Fields that need the width of the page rather than half of it. Anything
+#: somebody writes a sentence into, plus the ones whose answers are simply long.
+_FULL_WIDTH = ("address", "full legal name", "fees and costs", "city and state",
+               "relationship to the child", "hospital or place of birth",
+               "current legal name", "new legal name")
 
 
-def _prompt_for(fd: FieldDef) -> str:
+def _wants_full_width(fd: FieldDef) -> bool:
+    if fd.multiline:
+        return True
+    return any(phrase in fd.label.lower() for phrase in _FULL_WIDTH)
+
+
+#: Marks a question that is only asked when the box it depends on is ticked. On
+#: paper a blank is otherwise ambiguous between "not asked" and "asked, and the
+#: answer is no", and the long form said so in words it no longer has room for.
+CONDITIONAL_MARK = "\u2020"
+
+
+def _answer_hint(fd: FieldDef) -> str:
+    """What goes in the space: the choices, or nothing and a rule to write on."""
     if fd.type == "bool":
-        return "Yes  /  No"
-    if fd.type == "select":
-        # A long list (Oklahoma's 77 counties) is unreadable spelled out across
-        # a printed line — the same reason it is searchable on screen. A blank
-        # line to write the answer on is more useful on paper than a wall of
-        # choices, so this reuses that same signal.
-        if fd.searchable:
-            return _ANSWER_LINE
+        return "Y  /  N"
+    if fd.type == "select" and fd.options and not fd.searchable:
         return "  /  ".join(o.capitalize() for o in fd.options)
-    if fd.type == "date":
-        return "____ /____ /________   (month / day / year)"
-    return _ANSWER_LINE
+    return ""
 
 
-def build_questionnaire(registry: Registry, matter_id: str, variant_id: str, out_path: Path) -> Path:
-    """Generate a blank .docx questionnaire for a variant, straight from the schema.
+def _form_label(fd: FieldDef) -> str:
+    mark = CONDITIONAL_MARK if fd.depends_on else ""
+    return f"{fd.short_label or fd.label}{mark}:"
 
-    Adding a field to fields.json adds it here too. There is no second list to
-    keep in step.
+
+def _rule(cell, text: str) -> None:
+    """A cell with a line along the bottom, or the choices to circle."""
+    paragraph = cell.paragraphs[0]
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.space_before = Pt(0)
+    run = paragraph.add_run(text)
+    run.font.size = FORM_PT
+    if text:
+        return                                  # choices, not a blank to fill
+    borders = OxmlElement("w:tcBorders")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "6")
+    bottom.set(qn("w:color"), "000000")
+    borders.append(bottom)
+    cell._tc.get_or_add_tcPr().append(borders)
+
+
+def _caption(cell, text: str, *, bold: bool = False) -> None:
+    paragraph = cell.paragraphs[0]
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.paragraph_format.space_before = Pt(0)
+    run = paragraph.add_run(text)
+    run.font.size = FORM_PT
+    run.bold = bold
+
+
+def _form_table(doc, columns: list[int]):
+    table = doc.add_table(rows=0, cols=len(columns))
+    table.autofit = False
+    tblPr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        element = OxmlElement(f"w:{edge}")
+        element.set(qn("w:val"), "none")
+        borders.append(element)
+    tblPr.append(borders)
+    margins = OxmlElement("w:tblCellMar")
+    for edge, width in (("top", 0), ("left", 0), ("bottom", 0), ("right", 60)):
+        element = OxmlElement(f"w:{edge}")
+        element.set(qn("w:w"), str(width))
+        element.set(qn("w:type"), "dxa")
+        margins.append(element)
+    tblPr.append(margins)
+    return table
+
+
+def build_one_page_form(
+    registry: Registry, matter_id: str, variant_id: str, out_path: Path,
+    *, title: str, intro: str, only_for_the_family: bool,
+) -> Path:
+    """Every question this matter asks, on one page, in the office's own shape.
+
+    ``only_for_the_family`` leaves out what the office fills in for itself — the
+    filing county, the fee summary — which is the single difference between the
+    sheet posted to adoptive parents and the one an attorney takes into an
+    interview. Both are built from the schema, so a field added to fields.json
+    appears on whichever of them it belongs to without a second list to keep.
     """
     variant = registry.variant(matter_id, variant_id)
     matter = registry.matter(matter_id)
@@ -200,144 +279,103 @@ def build_questionnaire(registry: Registry, matter_id: str, variant_id: str, out
     doc = docx.Document()
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
-    style.font.size = Pt(12)
+    style.font.size = FORM_PT
+    style.paragraph_format.space_after = Pt(0)
+    for section in doc.sections:
+        section.top_margin = section.bottom_margin = Inches(FORM_MARGIN_IN)
+        section.left_margin = section.right_margin = Inches(FORM_MARGIN_IN)
 
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run("ADOPTION INTAKE QUESTIONNAIRE")
+    width = Emu(section.page_width - section.left_margin - section.right_margin).twips
+    label_w, answer_w = int(width * 0.27), int(width * 0.23)
+
+    heading = doc.add_paragraph()
+    run = heading.add_run(title)
     run.bold = True
-    run.font.size = Pt(14)
+    run.font.size = Pt(12)
+    heading.add_run(f"        {matter.label} — {variant.label}").font.size = Pt(9)
+    heading.add_run("        Date: ______________").font.size = FORM_PT
 
-    subtitle = doc.add_paragraph()
-    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle.add_run(f"{matter.label} — {variant.label}").italic = True
+    note = doc.add_paragraph()
+    note.paragraph_format.space_after = Pt(4)
+    note.add_run(intro).font.size = Pt(8)
 
-    doc.add_paragraph(_INSTRUCTIONS)
+    table = _form_table(doc, [label_w, answer_w, label_w, answer_w])
 
     for group_id in schema.group_order(variant.field_groups):
-        # Office information is not a question for the family — see Schema.on_questionnaire.
-        fields = [fd for fd in schema.input_fields([group_id]) if schema.on_questionnaire(fd)]
+        fields = [fd for fd in schema.input_fields([group_id])
+                  if not only_for_the_family or schema.on_questionnaire(fd)]
         if not fields:
             continue
-        heading = doc.add_paragraph()
-        heading.paragraph_format.space_before = Pt(14)
-        heading.add_run(schema.groups[group_id].get("label", group_id).upper()).bold = True
 
-        for fd in fields:
-            label = fd.label + ("" if fd.required else "  (if applicable)")
-            question = doc.add_paragraph()
-            question.paragraph_format.space_before = Pt(8)
-            question.paragraph_format.space_after = Pt(0)
-            question.add_run(f"{label}:")
-            if fd.help:
-                note = doc.add_paragraph()
-                note.paragraph_format.space_after = Pt(0)
-                note.add_run(fd.help).italic = True
-            answer = doc.add_paragraph(_prompt_for(fd))
-            answer.paragraph_format.space_after = Pt(6)
+        row = table.add_row().cells
+        row[0].merge(row[-1])
+        _caption(row[0], schema.groups[group_id].get("label", group_id).upper(), bold=True)
+        row[0].paragraphs[0].paragraph_format.space_before = Pt(5)
 
-    footer = doc.add_paragraph()
-    footer.paragraph_format.space_before = Pt(18)
-    footer.add_run(
-        "Signature: " + "_" * 34 + "        Date: " + "_" * 18
-    )
+        queue = list(fields)
+        while queue:
+            fd = queue.pop(0)
+            cells = table.add_row().cells
+            if _wants_full_width(fd):
+                _caption(cells[0], _form_label(fd))
+                cells[1].merge(cells[3])
+                _rule(cells[1], _answer_hint(fd))
+                continue
+            _caption(cells[0], _form_label(fd))
+            _rule(cells[1], _answer_hint(fd))
+            if queue and not _wants_full_width(queue[0]):
+                other = queue.pop(0)
+                _caption(cells[2], _form_label(other))
+                _rule(cells[3], _answer_hint(other))
+
+    if any(fd.depends_on for group_id in schema.group_order(variant.field_groups)
+           for fd in schema.input_fields([group_id])
+           if not only_for_the_family or schema.on_questionnaire(fd)):
+        footnote = doc.add_paragraph()
+        footnote.paragraph_format.space_before = Pt(4)
+        run = footnote.add_run(
+            f"{CONDITIONAL_MARK} asked only when the box it follows is ticked; "
+            f"leave it blank otherwise.")
+        run.font.size = Pt(8)
+        run.italic = True
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(out_path))
     return out_path
+
+
+def build_questionnaire(registry: Registry, matter_id: str, variant_id: str, out_path: Path) -> Path:
+    """The sheet posted to adoptive parents: their questions only, on one page."""
+    return build_one_page_form(
+        registry, matter_id, variant_id, out_path,
+        title="ADOPTION INTAKE — FOR ADOPTING PARENTS",
+        intro="Please answer everything you can, then return this to our office. Where a "
+              "question does not apply write N/A rather than leaving it blank, so we know "
+              "it was not overlooked. Dates as month/day/year.",
+        only_for_the_family=True,
+    )
 
 
 # --------------------------------------------------------------------------
 # the office's own worksheet
 # --------------------------------------------------------------------------
 
-_WORKSHEET_INSTRUCTIONS = (
-    "Every question this matter asks, in the order the intake form asks them, "
-    "so an interview can be taken on paper and typed in afterwards. Questions "
-    "the family is never asked — the filing county, the fee figures, the "
-    "attorney's own details — are included here, because this is the office's "
-    "copy rather than theirs."
-)
-
-
-def _worksheet_note(schema: Schema, fd: FieldDef) -> str:
-    """What a person filling this in by hand needs told about the question."""
-    notes = []
-    if fd.depends_on:
-        gate = schema.fields.get(fd.depends_on)
-        notes.append(f"only if \"{gate.label if gate else fd.depends_on}\" is yes")
-    elif not fd.required:
-        notes.append("if applicable")
-    if fd.help:
-        notes.append(fd.help)
-    return " — ".join(notes)
-
-
 def build_intake_worksheet(
     registry: Registry, matter_id: str, variant_id: str, out_path: Path
 ) -> Path:
-    """A blank worksheet covering *every* question the variant collects.
+    """The office's own sheet: every question the matter asks, on one page.
 
-    The paper questionnaire above is the family's: it leaves out what the office
-    fills in for itself. This is the other half — the whole intake, in the order
-    the screen asks it, for an attorney to take an interview on and type up
-    afterwards. Both are built from the schema, so a field added to fields.json
-    appears on both without anyone remembering to add it.
+    The questionnaire above leaves out what the office fills in for itself. This
+    keeps all of it, for an attorney to take an interview on and type up after.
     """
-    variant = registry.variant(matter_id, variant_id)
-    matter = registry.matter(matter_id)
-    schema = registry.schema
-
-    doc = docx.Document()
-    style = doc.styles["Normal"]
-    style.font.name = "Times New Roman"
-    style.font.size = Pt(12)
-
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run("ADOPTION INTAKE WORKSHEET")
-    run.bold = True
-    run.font.size = Pt(14)
-
-    subtitle = doc.add_paragraph()
-    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle.add_run(f"{matter.label} — {variant.label}").italic = True
-
-    intro = doc.add_paragraph()
-    intro.add_run(_WORKSHEET_INSTRUCTIONS).italic = True
-
-    header = doc.add_paragraph()
-    header.paragraph_format.space_before = Pt(10)
-    header.add_run("Client: " + "_" * 38 + "     Taken by: " + "_" * 20
-                   + "     Date: " + "_" * 16)
-
-    for group_id in schema.group_order(variant.field_groups):
-        fields = schema.input_fields([group_id])
-        if not fields:
-            continue
-        heading = doc.add_paragraph()
-        heading.paragraph_format.space_before = Pt(14)
-        heading.paragraph_format.space_after = Pt(2)
-        heading.add_run(schema.groups[group_id].get("label", group_id).upper()).bold = True
-
-        for fd in fields:
-            question = doc.add_paragraph()
-            question.paragraph_format.space_before = Pt(7)
-            question.paragraph_format.space_after = Pt(0)
-            question.add_run(f"{fd.label}:")
-            note = _worksheet_note(schema, fd)
-            if note:
-                line = doc.add_paragraph()
-                line.paragraph_format.space_after = Pt(0)
-                line.add_run(note).italic = True
-            answer = doc.add_paragraph(_prompt_for(fd))
-            answer.paragraph_format.space_after = Pt(4)
-
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(str(out_path))
-    return out_path
+    return build_one_page_form(
+        registry, matter_id, variant_id, out_path,
+        title="ADOPTION INTAKE",
+        intro="Every question this matter asks, in the order the intake form asks them — "
+              "including the ones the family is never asked.",
+        only_for_the_family=False,
+    )
 
 
 def default_worksheet_path(matter_id: str, variant_id: str, directory: Path | None = None) -> Path:

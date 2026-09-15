@@ -169,6 +169,11 @@ class FieldDef:
     #: None means "follow the group". False keeps one field off the questionnaire
     #: even though the rest of its group belongs there.
     questionnaire: bool | None = None
+    #: What the printed one-page form calls this, when the screen's wording is
+    #: too long for half a line. The screen can afford a whole sentence; a form
+    #: column an inch and a half wide cannot, and a wrapped label costs a row
+    #: that the page does not have. Falls back to `label`.
+    short_label: str = ""
     #: A derived value that may legitimately have nothing behind it. Every other
     #: derived field missing at generation time is a fault worth refusing over —
     #: an attorney_ field means settings.json was never filled in. The attorney's
@@ -209,6 +214,7 @@ class FieldDef:
             default=raw.get("default"),
             multiline=bool(raw.get("multiline", False)),
             questionnaire=raw.get("questionnaire"),
+            short_label=raw.get("short_label", ""),
             searchable=bool(raw.get("searchable", False)),
             optional=bool(raw.get("optional", False)),
         )

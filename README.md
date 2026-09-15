@@ -60,12 +60,18 @@ Two ways, neither of which needs a server or a login:
   you the match to confirm, and fills in the intake. A CSV reads exactly; a PDF
   has to be inferred, so check the mapping the first time. See
   `docs/CLIENT_FORMS.md`.
-- **Paper.** Export a blank .docx questionnaire, email it, and type the answers
+- **Paper.** Export the blank questionnaire, email it, and type the answers
   back in.
 - **An interview.** Export the intake worksheet — every question this matter
-  asks, blank, including the ones the family is never asked — take it into the
-  meeting, and type it up afterwards. Both are built from `config/fields.json`,
-  so a question added there appears on both.
+  asks, including the ones the family is never asked — take it into the meeting
+  and type it up afterwards.
+
+Both print on **one page**, laid out the way the office's own intake sheet
+always was: two questions to a line, each on a rule you can write along, section
+headings in capitals. Both are built from `config/fields.json`, so a question
+added there appears on whichever of them it belongs to. A question that is only
+asked when a box is ticked carries a dagger, with one footnote explaining it —
+a blank on paper is otherwise ambiguous between "not asked" and "answered no".
 
 ## Setup
 

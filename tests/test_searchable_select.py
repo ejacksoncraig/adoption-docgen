@@ -13,7 +13,7 @@ Alfalfa  /  Atoka  /  ..."). Unreadable at 10 options and worse at 77.
 
 from __future__ import annotations
 
-from app.intake import _prompt_for
+from app.intake import _answer_hint
 from app.registry import Registry
 from app.schema import FieldDef, Schema
 
@@ -64,11 +64,11 @@ def test_form_spec_tells_the_ui_which_selects_are_searchable():
 
 def test_a_searchable_select_gets_a_blank_line_on_paper():
     """77 counties spelled out on one line is not a question a person can use.
-    A line to write the answer on is what the office already relies on for
+    A rule to write the answer along is what the office already relies on for
     open-ended text fields."""
     fd = FieldDef(id="county", group="case", type="select", label="Filing county",
                  options=("Adair", "Alfalfa"), searchable=True)
-    assert _prompt_for(fd) == "_" * 58
+    assert _answer_hint(fd) == ""          # nothing printed; the cell is ruled instead
 
 
 def test_a_short_select_still_lists_its_choices():
@@ -77,4 +77,4 @@ def test_a_short_select_still_lists_its_choices():
     than a blank line when there are only two or three of them."""
     fd = FieldDef(id="petitioner1_gender", group="petitioner1", type="select", label="Gender",
                  options=("male", "female"), searchable=False)
-    assert _prompt_for(fd) == "Male  /  Female"
+    assert _answer_hint(fd) == "Male  /  Female"

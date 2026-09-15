@@ -78,13 +78,49 @@ def test_every_variant_renders_cleanly(registry, tmp_path, today, truthy):
     assert not failures, "\n".join(failures)
 
 
-def test_every_variant_can_produce_a_questionnaire(registry, tmp_path):
+def test_every_variant_can_produce_its_paper_forms(registry, tmp_path):
+    """Both of them: the sheet posted to the family and the office's own."""
+    from tests.test_intake import form_text
+
     for matter_id, variant_id in ready_variants(registry):
-        path = intake.build_questionnaire(registry, matter_id, variant_id,
-                                          tmp_path / f"{variant_id}.docx")
-        text = engine.document_text(path)
-        assert "ADOPTION INTAKE QUESTIONNAIRE" in text
-        assert not [t for t in TOKENS if t in text]
+        for kind, build, heading in (
+            ("questionnaire", intake.build_questionnaire, "FOR ADOPTING PARENTS"),
+            ("worksheet", intake.build_intake_worksheet, "ADOPTION INTAKE"),
+        ):
+            path = build(registry, matter_id, variant_id,
+                         tmp_path / f"{kind}-{variant_id}.docx")
+            text = form_text(path)
+            assert heading in text, f"{kind} {variant_id}"
+            assert not [t for t in TOKENS if t in text], f"{kind} {variant_id}"
+
+
+def test_every_paper_form_fits_on_one_page(registry, tmp_path):
+    """The whole point of the shape. A second page is a second thing to carry
+    into a meeting, and a second thing to lose."""
+    import docx
+    from docx.shared import Emu
+
+    overflowing = []
+    for matter_id, variant_id in ready_variants(registry):
+        for kind, build in (("questionnaire", intake.build_questionnaire),
+                            ("worksheet", intake.build_intake_worksheet)):
+            path = build(registry, matter_id, variant_id,
+                         tmp_path / f"fit-{kind}-{variant_id}.docx")
+            document = docx.Document(str(path))
+            table = document.tables[0]
+            headings = sum(1 for row in table.rows
+                           if row.cells[0].text.strip()
+                           and row.cells[0].text.strip().isupper())
+            # a 10pt row is about 12.6pt; headings add their space-before; the
+            # title, the note and the footnote are about 44pt between them
+            estimate = len(table.rows) * 12.6 + headings * 5 + 44
+            section = document.sections[0]
+            available = Emu(section.page_height - section.top_margin
+                            - section.bottom_margin).pt
+            if estimate > available:
+                overflowing.append(
+                    f"{kind} {variant_id}: about {estimate:.0f}pt of {available:.0f}pt")
+    assert not overflowing, "\n".join(overflowing)
 
 
 def test_placeholder_answers_satisfy_every_variant(registry):
