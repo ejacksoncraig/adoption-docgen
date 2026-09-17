@@ -132,6 +132,39 @@ A single field can opt out the same way, when the rest of its group does belong
 on the questionnaire. `attorney_fees_summary` sits in the `dhs` group — the
 family answers the rest of that group, but not the fee schedule.
 
+## Making something start on a new page
+
+Blank lines are not an instruction. They leave room and hope the text above ends
+where you expected, which it does until a conditional paragraph fires, a second
+child appears, or an allegation gets a sentence longer.
+
+Word's own paragraph setting says it properly:
+
+```xml
+<w:pPr><w:pageBreakBefore/></w:pPr>
+```
+
+"Start this paragraph at the top of a page, whatever came before." The packets
+already use it — that is why the eight documents inside the filing packet have
+stayed on separate pages through every change to the templates.
+
+For a section that must be **alone** on its page, that is only half of it:
+
+- `w:pageBreakBefore` on its first paragraph, so nothing above shares the page
+- a page break after the block, so nothing below does either
+- `w:keepNext` and `w:keepLines` across the block, so Word cannot end the page
+  halfway down it if it ever grows
+
+The Verification in all six petitions is the worked example. It used to be
+reached by between one and nine blank lines depending on the template, which
+meant where it landed depended on ICWA, a name change, kinship and the number of
+children. `tests/test_render.py` asserts it both in the template and in the
+rendered document across four branch combinations.
+
+Note the order these go in: `w:pPr`'s children are a fixed sequence, and
+`keepNext`, `keepLines` and `pageBreakBefore` all sit directly after `w:pStyle`,
+in that order. Word will not open a file that gets it wrong.
+
 ## The caption is a table
 
 Every caption in every template — 32 of them, since a packet holds several

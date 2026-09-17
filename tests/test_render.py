@@ -419,3 +419,88 @@ def test_a_wholly_bold_paragraph_keeps_its_bold(registry):
         registry.template_path("dhs/dhs_petition_decree_1p_1c.docx")) if is_whole]
     assert len(whole) == 2
     assert all(t.startswith("IT IS ") for t in whole), whole
+
+
+# --------------------------------------------------------------------------
+# the Verification stands on a page of its own
+# --------------------------------------------------------------------------
+
+
+VERIFICATION_TEMPLATES = [
+    "dhs/dhs_petition_decree_1p_1c.docx",
+    "dhs/dhs_petition_decree_2p_1c.docx",
+    "dhs/dhs_petition_1p_2c.docx",
+    "dhs/dhs_petition_2p_2c.docx",
+    "stepparent/step_petition_1c.docx",
+    "stepparent/step_petition_2c.docx",
+]
+
+
+def _verification_paragraph(document):
+    from docx.oxml.ns import qn
+
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip() == "VERIFICATION":
+            return paragraph, paragraph._p.find(qn("w:pPr"))
+    raise AssertionError("no VERIFICATION heading in the document")
+
+
+@pytest.mark.parametrize("template", VERIFICATION_TEMPLATES)
+def test_the_verification_starts_a_new_page(registry, template):
+    """It used to be reached by blank lines, which is not an instruction — it is
+    room left in the hope that the text above happens to end in the right place.
+    How long a petition runs depends on ICWA, a name change, kinship and how many
+    children there are, so the hope was misplaced."""
+    import docx
+    from docx.oxml.ns import qn
+
+    document = docx.Document(str(registry.template_path(template)))
+    _paragraph, properties = _verification_paragraph(document)
+    assert properties is not None, f"{template}: VERIFICATION has no paragraph properties"
+    assert properties.find(qn("w:pageBreakBefore")) is not None, template
+
+
+@pytest.mark.parametrize("branches", [
+    {"icwa_applies": True, "name_change": True, "kinship": True,
+     "kinship_relationship": "maternal grandparents", "child1_new_name": "NEW NAME"},
+    {"icwa_applies": False, "name_change": False, "tribe": None,
+     "child1_new_name": None, "kinship": False},
+    {"bio_mother_status": "terminated", "bio_father_status": "terminated"},
+    {"child1_dob": "2008-01-01"},
+])
+def test_the_verification_keeps_its_page_whatever_the_petition_says(
+    registry, tmp_path, today, branches
+):
+    """The point of a page break rather than padding: the length of everything
+    above it stops mattering."""
+    import docx
+    from docx.oxml.ns import qn
+
+    result = engine.generate(registry, PILOT_MATTER, PILOT_VARIANT,
+                             fixtures.values(**branches), today=today, output_root=tmp_path)
+    generated = next(f for f in result.files if "petition_decree" in f.template)
+    _paragraph, properties = _verification_paragraph(docx.Document(str(generated.path)))
+    assert properties.find(qn("w:pageBreakBefore")) is not None
+
+
+def test_the_verification_is_not_split_across_two_pages(registry):
+    """A page break says where it starts. Keeping its lines together is what
+    stops Word ending the page halfway down it."""
+    import docx
+    from docx.oxml.ns import qn
+
+    document = docx.Document(
+        str(registry.template_path("dhs/dhs_petition_decree_1p_1c.docx")))
+    started = False
+    held = 0
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip() == "VERIFICATION":
+            started = True
+        if not started:
+            continue
+        properties = paragraph._p.find(qn("w:pPr"))
+        if properties is not None and properties.find(qn("w:keepLines")) is not None:
+            held += 1
+        if paragraph.text.strip() == "Notary Public":
+            break
+    assert held >= 15, f"only {held} paragraphs of the verification are held together"
