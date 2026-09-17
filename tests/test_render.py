@@ -411,14 +411,61 @@ def test_a_petitioners_name_is_not_bold_in_the_middle_of_a_sentence(registry, te
     assert not offenders, "\n".join(offenders)
 
 
-def test_a_wholly_bold_paragraph_keeps_its_bold(registry):
-    """The decree's two ordering paragraphs are bold from end to end. There the
-    bold belongs to the paragraph, not the name, and lifting it off the name
-    alone would punch a hole in it."""
-    whole = [opening for is_whole, opening in _bold_name_paragraphs(
-        registry.template_path("dhs/dhs_petition_decree_1p_1c.docx")) if is_whole]
-    assert len(whole) == 2
-    assert all(t.startswith("IT IS ") for t in whole), whole
+def test_only_the_lead_in_of_an_ordering_paragraph_is_bold(registry):
+    """The decree's two ordering paragraphs used to be bold from end to end,
+    which shouts the whole order rather than marking where it starts. The office
+    asked for the lead-in only — the same treatment "TAKE NOTICE" and "WHEREFORE"
+    already get.
+
+    That retired the wholly-bold exception: with it gone, no petitioner's name is
+    bold anywhere, which is what the test above now checks without exception."""
+    import zipfile
+
+    paragraph = re.compile(r'<w:p\b(?:(?!</w:p>).)*?</w:p>', re.S)
+    run = re.compile(r'<w:r>(?:(?!</w:r>).)*?</w:r>', re.S)
+
+    def text_of(one):
+        return "".join(
+            "\t" if m.group(0).startswith("<w:tab") else m.group(1)
+            for m in re.finditer(r'<w:tab\s*/>|<w:t(?:\s[^>]*)?>(.*?)</w:t>', one, re.S))
+
+    checked = 0
+    for template in ("dhs/dhs_petition_decree_1p_1c.docx", "dhs/dhs_petition_decree_2p_1c.docx"):
+        xml = zipfile.ZipFile(registry.template_path(template)).read(
+            "word/document.xml").decode("utf-8")
+        for block in paragraph.findall(xml):
+            speaking = [r for r in run.findall(block) if text_of(r).strip()]
+            whole = "".join(text_of(r) for r in speaking)
+            if not whole.strip().startswith("IT IS "):
+                continue
+            checked += 1
+            bold = [text_of(r).strip() for r in speaking if "<w:b/>" in r]
+            assert bold, f"{template}: the lead-in lost its bold"
+            # the lead-in, and the new child's name where the order changes it —
+            # nothing else in the paragraph
+            allowed = re.compile(
+                r'IT IS (?:THEREFORE|FURTHER) ORDERED, ADJUDGED AND DECREED BY THE COURT'
+                r'|\{\{\s*child[12]_new_name\s*\}\}')
+            stray = [b for b in bold if not allowed.search(b)]
+            assert not stray, f"{template}: still bold past the lead-in: {stray}"
+    assert checked == 4, f"expected four ordering paragraphs, saw {checked}"
+
+
+def test_the_new_childs_name_is_still_bold_when_the_name_changes(registry, tmp_path, today):
+    """The one thing on the page a reader is meant to find. The office asked for
+    it to survive the un-bolding, so it is worth a test of its own."""
+    import docx
+
+    result = engine.generate(
+        registry, PILOT_MATTER, PILOT_VARIANT,
+        fixtures.values(name_change=True, child1_new_name="NEW CHILD NAME"),
+        today=today, output_root=tmp_path)
+    generated = next(f for f in result.files if "petition_decree" in f.template)
+
+    bolded = [r.text.strip() for p in docx.Document(str(generated.path)).paragraphs
+              for r in p.runs if r.bold and r.text.strip()]
+    # once in the petition's paragraph 5, once in the decree's findings
+    assert bolded.count("NEW CHILD NAME") == 2, bolded
 
 
 # --------------------------------------------------------------------------
