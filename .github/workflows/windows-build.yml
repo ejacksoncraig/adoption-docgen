@@ -1,0 +1,62 @@
+# Builds the Windows program on GitHub's own Windows machine.
+#
+# PyInstaller cannot cross-compile, so a .exe has to be made on Windows. This
+# does that in the cloud on every push to main, and on demand from the Actions
+# tab, so getting a Windows build does not require owning a working Windows
+# development setup — only a browser.
+#
+# What comes out is the same folder build.py produces on a Mac: the program,
+# config/ and templates/ beside it. Download it from the run's Artifacts
+# section, unzip, and keep the folder together.
+#
+# It is not signed. Windows SmartScreen will warn on first launch: More info →
+# Run anyway, once. Signing would need a Windows code-signing certificate,
+# which is a purchase, not a setting.
+
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:        # the "Run workflow" button on the Actions tab
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.12 because pywebview's wheels are published for it. On Windows
+      # pywebview pulls pythonnet automatically and renders through the Edge
+      # WebView2 runtime, which is already part of the OS.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Run the suite on the platform it is actually about. Three tests here
+      # assert Windows path behaviour and cannot pass on a Mac, so this is the
+      # only place their result means anything. A failure is reported but does
+      # not stop the build: seeing the .exe and the failure together is more
+      # use than seeing neither.
+      - name: Tests
+        continue-on-error: true
+        run: python -m pytest -q
+
+      - name: Build
+        run: python build.py
+
+      # The program, ready to copy to the machine that will run it. config/
+      # holds the blank settings.json from the repository, not the office's
+      # own — those are filled in once, in the app, under Office details.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AdoptionFilingGenerator-windows
+          path: dist/AdoptionFilingGenerator
+          if-no-files-found: error
