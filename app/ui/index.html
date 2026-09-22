@@ -28,10 +28,10 @@
     --line:       #e2ddd3;
     --line-soft:  #eeeae2;
 
-    --accent:      #1d4b3d;
-    --accent-hi:   #2a6a55;
-    --accent-wash: #eef3f0;
-    --accent-line: #cadbd2;
+    --accent:      #7d1d45;
+    --accent-hi:   #a93163;
+    --accent-wash: #fbeef4;
+    --accent-line: #edcfdc;
 
     --danger:      #8c2f28;
     --danger-wash: #fdf1ef;
@@ -70,20 +70,20 @@
 
   /* ================= left rail ================= */
   .rail {
-    grid-area: rail; color: #e9efec;
-    background: linear-gradient(178deg, #235746 0%, var(--accent) 42%, #173d31 100%);
+    grid-area: rail; color: #f7ebf0;
+    background: linear-gradient(178deg, #8d2551 0%, var(--accent) 42%, #651838 100%);
     display: flex; flex-direction: column; overflow: hidden;
     box-shadow: inset -1px 0 0 rgba(0,0,0,.18);
   }
   .brand { padding: 22px 20px 18px; display: flex; gap: 12px; align-items: flex-start; }
   .brand .mark {
     width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
-    background: rgba(255,255,255,.14); color: #eaf2ee;
+    background: rgba(255,255,255,.14); color: #f9edf2;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 3px rgba(0,0,0,.2);
   }
   .brand h1 { font: 600 15.5px/1.28 var(--display); margin: 0; letter-spacing: .1px; color: #fff; }
   .brand .sub {
-    font-size: 10.5px; color: #96b7a8; letter-spacing: 1.1px; text-transform: uppercase;
+    font-size: 10.5px; color: #dcb7c5; letter-spacing: 1.1px; text-transform: uppercase;
     display: block; margin-top: 3px;
   }
 
@@ -92,21 +92,21 @@
   nav button {
     display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
     background: none; border: 0; border-radius: var(--r); cursor: pointer;
-    padding: 9px 10px; font: inherit; font-size: 13.5px; color: #b9cdc4;
+    padding: 9px 10px; font: inherit; font-size: 13.5px; color: #e0c0ce;
   }
   nav button .num {
     width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center;
-    background: rgba(255,255,255,.12); color: #cfe0d8;
+    background: rgba(255,255,255,.12); color: #eed6e0;
     font-size: 11.5px; font-weight: 600; flex: none;
     transition: background .15s, color .15s;
   }
-  nav button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #f0f5f2; }
+  nav button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #faf1f5; }
   nav button[aria-current="true"] {
     background: rgba(255,255,255,.15); color: #fff; font-weight: 600;
-    box-shadow: inset 2px 0 0 #7fc0a4;
+    box-shadow: inset 2px 0 0 #e39fbc;
   }
   nav button[aria-current="true"] .num { background: #fff; color: var(--accent); }
-  nav button.done .num { background: #7fc0a4; color: #14342a; }
+  nav button.done .num { background: #e39fbc; color: #561631; }
   nav button:disabled { opacity: .38; cursor: default; }
 
   .rail hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: 12px 16px; }
@@ -115,26 +115,26 @@
   .context { padding: 0 18px; overflow-y: auto; flex: 1; }
   .context h2 {
     font: 600 10.5px/1 var(--sans); letter-spacing: .9px; text-transform: uppercase;
-    color: #86a99a; margin: 14px 0 8px;
+    color: #d9b8c5; margin: 14px 0 8px;
   }
-  .context .line { font-size: 13px; color: #dfe9e4; margin-bottom: 3px; }
-  .context .line.dim { color: #9fbdb0; font-size: 12.5px; }
+  .context .line { font-size: 13px; color: #f3e2ea; margin-bottom: 3px; }
+  .context .line.dim { color: #dab8c6; font-size: 12.5px; }
   .context ul { list-style: none; margin: 0; padding: 0; }
-  .context li { font-size: 12.5px; color: #cfe0d8; padding: 3px 0 3px 14px; position: relative; line-height: 1.4; }
+  .context li { font-size: 12.5px; color: #eed6e0; padding: 3px 0 3px 14px; position: relative; line-height: 1.4; }
   .context li::before {
     content: ""; position: absolute; left: 3px; top: 9px;
-    width: 4px; height: 4px; border-radius: 50%; background: #6d9584;
+    width: 4px; height: 4px; border-radius: 50%; background: #bd7895;
   }
 
   .meter { height: 5px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; margin: 7px 0 5px; }
-  .meter i { display: block; height: 100%; background: #7fc0a4; width: 0; transition: width .25s ease; }
-  .meter.full i { background: #a9dcc3; }
+  .meter i { display: block; height: 100%; background: #e39fbc; width: 0; transition: width .25s ease; }
+  .meter.full i { background: #eec6d7; }
 
   .rail footer {
     padding: 12px 18px 14px; border-top: 1px solid rgba(255,255,255,.12);
-    font-size: 11px; color: #86a99a; display: flex; flex-direction: column; gap: 4px;
+    font-size: 11px; color: #d9b8c5; display: flex; flex-direction: column; gap: 4px;
   }
-  .rail footer .lock { display: flex; align-items: center; gap: 6px; color: #b9cdc4; }
+  .rail footer .lock { display: flex; align-items: center; gap: 6px; color: #e0c0ce; }
   .rail footer .path {
     font: 10.5px/1.4 var(--mono); word-break: break-all; opacity: .75;
   }
@@ -233,12 +233,12 @@
   .railaux button {
     display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
     background: none; border: 0; border-radius: var(--r); cursor: pointer;
-    padding: 9px 10px; font: inherit; font-size: 13.5px; color: #b9cdc4;
+    padding: 9px 10px; font: inherit; font-size: 13.5px; color: #e0c0ce;
   }
-  .railaux button:hover { background: rgba(255,255,255,.08); color: #f0f5f2; }
+  .railaux button:hover { background: rgba(255,255,255,.08); color: #faf1f5; }
   .railaux button[aria-current="true"] {
     background: rgba(255,255,255,.15); color: #fff; font-weight: 600;
-    box-shadow: inset 2px 0 0 #7fc0a4;
+    box-shadow: inset 2px 0 0 #e39fbc;
   }
   /* Unfilled office details are not an error — nothing is broken yet — but they
      do stop the first filing, so the way in is marked rather than announced. */
@@ -258,7 +258,7 @@
     border: 1px solid var(--line); border-radius: var(--r); background: #fff; cursor: pointer;
     transition: border-color .14s, background .14s, box-shadow .14s;
   }
-  .choice:hover { border-color: var(--accent-hi); background: #fdfefd; box-shadow: var(--shadow-sm); }
+  .choice:hover { border-color: var(--accent-hi); background: #fffefe; box-shadow: var(--shadow-sm); }
   .choice input { margin: 2px 0 0; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
   .choice.selected {
     border-color: var(--accent); background: var(--accent-wash);
