@@ -100,6 +100,13 @@ COLLECT = ("webview", "pypdf", "docx", "docxtpl")
 #: and the runtime fails without these.
 ENTITLEMENTS = ROOT / "packaging" / "entitlements.plist"
 
+#: The office's mark. PyInstaller will not take a .png: each platform wants its
+#: own container, holding the same picture at a dozen sizes. Both are committed
+#: and both come from packaging/icon.png — see packaging/make_icons.py, which
+#: is what to rerun if the logo changes. Without this the application ships
+#: with PyInstaller's stock icon, which is what it did until somebody looked.
+ICON = ROOT / "packaging" / ("icon.icns" if MAC else "icon.ico")
+
 
 def run_pyinstaller(universal: bool = False, identity: str | None = None) -> None:
     separator = ";" if sys.platform == "win32" else ":"
@@ -109,6 +116,7 @@ def run_pyinstaller(universal: bool = False, identity: str | None = None) -> Non
         "--clean",
         "--windowed",                      # no console window behind the app
         "--name", NAME,
+        *(("--icon", str(ICON)) if ICON.exists() else ()),
         "--add-data", f"{ROOT / 'app' / 'ui'}{separator}ui",
         # A second copy of config/ and templates/, carried inside the
         # application. The copies *beside* it remain the ones the office edits
